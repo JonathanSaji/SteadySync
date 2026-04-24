@@ -1,0 +1,36 @@
+{
+  "manifest_version": 3,
+  "name": "SUBTRACKR Subscription Helper",
+  "description": "Gently reminds you to log new subscriptions in SUBTRACKR when you're on subscription-related pages.",
+  "version": "1.0.0",
+  "permissions": [
+    "tabs",
+    "storage"
+  ],
+  "host_permissions": [
+    "<all_urls>"
+  ],
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content-script.js"],
+      "css": ["content-style.css"],
+      "run_at": "document_idle"
+    }
+  ],
+  "action": {
+    "default_title": "SUBTRACKR Helper"
+  },
+  "options_page": "options.html",
+  "web_accessible_resources": [
+    {
+      "resources": ["content-style.css"],
+      "matches": ["<all_urls>"]
+    }
+  ]
+}
+
