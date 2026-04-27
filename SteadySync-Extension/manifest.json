@@ -5,6 +5,7 @@
   "description": "Adaptive UI and tremor filtering for a smoother browsing experience.",
   "permissions": ["scripting", "storage"],
   "host_permissions": ["<all_urls>"],
+  "options_page": "options.html",
   "action": {
     "default_popup": "popup.html"
   },
@@ -15,4 +16,5 @@
       "css": ["styles.css"]
     }
   ]
+  
 }

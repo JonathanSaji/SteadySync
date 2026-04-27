@@ -1,14 +1,23 @@
 <!DOCTYPE html>
 <html>
-  <head>
-    <style>
-      body { width: 180px; font-family: sans-serif; padding: 10px; }
-      h2 { font-size: 14px; color: #4285f4; }
-      .status { font-size: 12px; color: green; }
-    </style>
-  </head>
-  <body>
-    <h2>SteadySync</h2>
-    <p class="status">Hello World</p>
-  </body>
+<head>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <h1>SteadySync</h1>
+        
+        <div class="master-control">
+            <button id="masterBtn" class="off">System OFF</button>
+        </div>
+
+        <div class="voice-status">
+            <span class="dot"></span>
+            <p id="voiceMsg">Listening for command...</p>
+        </div>
+
+        <button id="openSettings" class="link-btn">Advanced Settings</button>
+    </div>
+    <script src="popup.js"></script>
+</body>
 </html>
