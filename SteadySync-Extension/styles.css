@@ -7,11 +7,11 @@
     --color-black-deep: #010801; /* Bottom color from your image */
 
     /* Functional Mapping */
-    --bg-dark: var(--color-black-deep);
-    --surface: var(--color-charcoal);
+    --bg-dark: #f4f8f9;
+    --surface: var(--color-white);
     --accent: var(--color-teal-bright);
-    --text-main: var(--color-white);
-    --text-dim: #b0b0b0; /* Helper for secondary text */
+    --text-main: var(--color-charcoal);
+    --text-dim: #4c6366; /* Helper for secondary text */
     
     /* Status Colors */
     --status-on: #2ecc71;  /* Green for 'Active' */
@@ -56,7 +56,7 @@
     flex: 1;
     width: 100%;
     min-height: 320px;
-    border: 1px solid var(--color-teal-muted);
+    border: 2px solid var(--color-teal-bright);
     border-radius: 12px;
     background: var(--surface);
     color: var(--text-main);
@@ -64,6 +64,7 @@
     font-weight: 800;
     letter-spacing: 0.03em;
     cursor: pointer;
+    transition: transform 140ms ease, box-shadow 140ms ease, background-color 140ms ease, color 140ms ease;
 }
 
 #masterBtn.big-toggle:focus-visible,
@@ -74,17 +75,33 @@
     outline-offset: 2px;
 }
 
+#masterBtn.big-toggle:hover {
+    background: var(--color-teal-bright);
+    color: var(--color-white);
+    transform: translateY(-1px);
+    box-shadow: 0 3px 10px rgba(40, 95, 107, 0.2);
+}
+
 #goToSettings,
 #backToPopup {
     width: 100%;
-    border: 1px solid var(--color-teal-muted);
+    border: 2px solid var(--color-teal-bright);
     border-radius: 10px;
-    background: transparent;
+    background: var(--surface);
     color: var(--text-main);
     padding: 11px 14px;
     font-size: 1rem;
     font-weight: 600;
     cursor: pointer;
+    transition: transform 120ms ease, background-color 120ms ease, color 120ms ease, box-shadow 120ms ease;
+}
+
+#goToSettings:hover,
+#backToPopup:hover {
+    background: var(--color-teal-bright);
+    color: var(--color-white);
+    transform: translateY(-1px);
+    box-shadow: 0 2px 8px rgba(40, 95, 107, 0.18);
 }
 
 /* Settings layout */
@@ -96,7 +113,7 @@
 
 #settings-view .card {
     background: var(--surface);
-    border: 1px solid var(--color-teal-muted);
+    border: 2px solid var(--color-teal-bright);
     border-radius: 12px;
     padding: 14px;
     display: flex;
