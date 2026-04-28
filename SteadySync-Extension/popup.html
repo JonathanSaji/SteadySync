@@ -4,20 +4,24 @@
     <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-    <div class="container">
-        <h1>SteadySync</h1>
+    <div id="app-container">
         
-        <div class="master-control">
-            <button id="masterBtn" class="off">System OFF</button>
-        </div>
+        <section id="popup-view">
+            <h1>SteadySync</h1>
+            <button id="masterBtn" class="big-toggle">SYSTEM OFF</button>
+            <button id="goToSettings">Advanced Settings</button>
+        </section>
 
-        <div class="voice-status">
-            <span class="dot"></span>
-            <p id="voiceMsg">Listening for command...</p>
-        </div>
+        <section id="settings-view" style="display: none;">
+            <button id="backToPopup">Back</button>
+            <h2>Settings</h2>
+            <div class="card">
+                <span>Steady Path</span>
+                <input type="checkbox" id="path-toggle">
+            </div>
+            </section>
 
-        <button id="openSettings" class="link-btn">Advanced Settings</button>
     </div>
-    <script src="popup.js"></script>
+    <script src="script.js"></script>
 </body>
 </html>
