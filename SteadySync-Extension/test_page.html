@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SteadySync Testing Playground</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      padding: 40px;
+      background-color: #f5f5f7;
+      color: #333;
+    }
+    h1 {
+      text-align: center;
+      margin-bottom: 40px;
+    }
+    .test-section {
+      background: white;
+      padding: 30px;
+      border-radius: 12px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+      margin-bottom: 40px;
+    }
+    .small-button {
+      padding: 5px 10px;
+      font-size: 12px;
+      cursor: pointer;
+      border: 1px solid #007aff;
+      background: #e5f1ff;
+      color: #007aff;
+      border-radius: 4px;
+      transition: background 0.2s;
+    }
+    .small-button:active {
+      background: #007aff;
+      color: white;
+    }
+    .container {
+      display: flex;
+      gap: 20px;
+      align-items: center;
+      margin-top: 20px;
+    }
+    .output {
+      margin-top: 15px;
+      padding: 10px;
+      background: #eef;
+      border-left: 4px solid #007aff;
+      font-family: monospace;
+      min-height: 20px;
+    }
+    /* Cluster test styling */
+    .cluster {
+      display: grid;
+      grid-template-columns: repeat(3, auto);
+      gap: 5px;
+      justify-content: start;
+    }
+  </style>
+</head>
+<body>
+
+  <h1>SteadySync: Adaptive Click Testing</h1>
+
+  <div class="test-section">
+    <h2>Test 1: The Isolated Small Button</h2>
+    <p>Move your mouse smoothly toward this button and try to miss it slightly. Then, intentionally shake your mouse near it (simulate a tremor) and click slightly outside of it.</p>
+    <div class="container">
+      <button class="small-button" id="btn1" onclick="logClick('btn1', 'output1')">Click Me</button>
+    </div>
+    <div class="output" id="output1">Waiting for click...</div>
+  </div>
+
+  <div class="test-section">
+    <h2>Test 2: Clustered Buttons</h2>
+    <p>Notice how the debug box shrinks and grows based on your cursor stability. The system will snap your click to the <em>nearest</em> button's center when hitboxes overlap.</p>
+    <div class="container cluster">
+      <button class="small-button" id="btnA" onclick="logClick('btnA', 'output2')">Button A</button>
+      <button class="small-button" id="btnB" onclick="logClick('btnB', 'output2')">Button B</button>
+      <button class="small-button" id="btnC" onclick="logClick('btnC', 'output2')">Button C</button>
+      <button class="small-button" id="btnD" onclick="logClick('btnD', 'output2')">Button D</button>
+      <button class="small-button" id="btnE" onclick="logClick('btnE', 'output2')">Button E</button>
+      <button class="small-button" id="btnF" onclick="logClick('btnF', 'output2')">Button F</button>
+    </div>
+    <div class="output" id="output2">Waiting for click...</div>
+  </div>
+
+  <script>
+    function logClick(buttonId, outputId) {
+      const output = document.getElementById(outputId);
+      const time = new Date().toLocaleTimeString();
+      output.innerText = `[${time}] Clicked: ${buttonId} (Success!)`;
+      
+      // Visual flash
+      output.style.backgroundColor = '#d4edda';
+      output.style.borderColor = '#28a745';
+      setTimeout(() => {
+        output.style.backgroundColor = '#eef';
+        output.style.borderColor = '#007aff';
+      }, 500);
+    }
+  </script>
+</body>
+</html>
