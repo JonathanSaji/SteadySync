@@ -225,4 +225,106 @@
 
   console.log("Adaptive Click Assistance System loaded.");
 
+//voice detection hovering thingy - jon
+// --- Voice Hover ---
+
+function initVoiceHover() {
+  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SpeechRecognition) {
+    console.warn("[SteadySync] SpeechRecognition not supported in this browser.");
+    return;
+  }
+
+  const recognition = new SpeechRecognition();
+  recognition.continuous = true;       // Keep listening
+  recognition.interimResults = true;   // Fire events as you speak, not just on silence
+  recognition.lang = 'en-US';
+
+  let lastSpoken = '';
+
+  recognition.onresult = (event) => {
+    // pasted in from FluencySync
+    const result = event.results[event.results.length - 1];
+    const transcript = result[0].transcript.trim().toLowerCase();
+
+    if (transcript === lastSpoken) return;
+    lastSpoken = transcript;
+
+    if (CONFIG.DEBUG_MODE) {
+      console.log(`[Voice Hover] Heard: "${transcript}"`);
+    }
+
+    hoverBestMatch(transcript);
+  };
+
+  recognition.onerror = (e) => {
+    // 'no-speech' fires often and is harmless — ignore it
+    if (e.error !== 'no-speech') {
+      console.warn('[SteadySync Voice] Error:', e.error);
+    }
+  };
+
+  // Auto-restart if recognition stops (e.g. timeout)
+  recognition.onend = () => recognition.start();
+
+  recognition.start();
+  console.log("[SteadySync] Voice hover active.");
+}
+
+/**
+ * Scores how closely a button label matches the spoken phrase.
+ * Returns 0–1 (1 = perfect match).
+ */
+function matchScore(spoken, label) {
+  if (!label) return 0;
+  const a = spoken.toLowerCase();
+  const b = label.toLowerCase();
+  if (b === a) return 1;
+  if (b.includes(a) || a.includes(b)) return 0.8;
+
+  // Count shared words
+  const wordsA = new Set(a.split(/\s+/));
+  const wordsB = b.split(/\s+/);
+  const shared = wordsB.filter(w => wordsA.has(w)).length;
+  return shared / Math.max(wordsA.size, wordsB.length);
+}
+
+
+//Finds the element whose label best matches the spoken text and hovers it.
+
+function hoverBestMatch(spoken) {
+  const elements = getClickableElements();
+  let bestEl = null;
+  let bestScore = 0.4; // Minimum threshold to avoid spurious matches
+
+  for (const el of elements) {
+    // Use aria-label, title, or visible text content as the label
+    const label = (
+      el.getAttribute('aria-label') ||
+      el.getAttribute('title') ||
+      el.innerText ||
+      el.value ||        // for <input type="submit">
+      ''
+    ).trim();
+
+    const score = matchScore(spoken, label);
+    if (score > bestScore) {
+      bestScore = score;
+      bestEl = el;
+    }
+  }
+
+  if (bestEl) {
+    bestEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    bestEl.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
+    bestEl.focus({ preventScroll: true });
+
+    if (CONFIG.DEBUG_MODE) {
+      console.log(`[Voice Hover] Matched "${spoken}" → `, bestEl, `(score: ${bestScore.toFixed(2)})`);
+    }
+  }
+}
+
+//starts it allowing the user to hover over buttons by saying their name - jon
+initVoiceHover();
 })();
