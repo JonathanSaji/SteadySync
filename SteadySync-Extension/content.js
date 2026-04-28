@@ -1,14 +1,25 @@
-const popupView = document.getElementById('popup-view');
-const settingsView = document.getElementById('settings-view');
+document.addEventListener("DOMContentLoaded", () => {
+    const popupView = document.getElementById("popup-view");
+    const settingsView = document.getElementById("settings-view");
+    const goToSettingsButton = document.getElementById("goToSettings");
+    const backToPopupButton = document.getElementById("backToPopup");
+    const pathToggle = document.getElementById("path-toggle");
 
-// Switch to Settings
-document.getElementById('goToSettings').addEventListener('click', () => {
-    popupView.style.display = 'none';
-    settingsView.style.display = 'flex';
-});
+    const showView = (view) => {
+        popupView.style.display = view === "popup" ? "block" : "none";
+        settingsView.style.display = view === "settings" ? "block" : "none";
+    };
 
-// Switch back to Popup
-document.getElementById('backToPopup').addEventListener('click', () => {
-    settingsView.style.display = 'none';
-    popupView.style.display = 'flex';
+    goToSettingsButton.addEventListener("click", () => showView("settings"));
+    backToPopupButton.addEventListener("click", () => showView("popup"));
+
+    if (pathToggle) {
+        chrome.storage.local.get(["pathToggleEnabled"], (result) => {
+            pathToggle.checked = Boolean(result.pathToggleEnabled);
+        });
+
+        pathToggle.addEventListener("change", () => {
+            chrome.storage.local.set({ pathToggleEnabled: pathToggle.checked });
+        });
+    }
 });

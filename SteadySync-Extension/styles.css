@@ -1,15 +1,121 @@
-/* This ensures the extension window is the right size */
-#app-container {
-    width: 450px;
-    min-height: 550px;
-    padding: 20px;
-    background: #ffffff;
-    color: #1a1a1a;
+:root {
+    /* Primary Palette from Image */
+    --color-white: #FFFFFF;
+    --color-teal-bright: #367D8A;
+    --color-teal-muted: #285F6B;
+    --color-charcoal: #133336;
+    --color-black-deep: #010801; /* Bottom color from your image */
+
+    /* Functional Mapping */
+    --bg-dark: var(--color-black-deep);
+    --surface: var(--color-charcoal);
+    --accent: var(--color-teal-bright);
+    --text-main: var(--color-white);
+    --text-dim: #b0b0b0; /* Helper for secondary text */
+    
+    /* Status Colors */
+    --status-on: #2ecc71;  /* Green for 'Active' */
+    --status-off: #e74c3c; /* Red for 'Inactive' */
 }
 
-/* Specific styling for the views */
-#popup-view { display: flex; flex-direction: column; }
-#settings-view { display: flex; flex-direction: column; }
+#app-container,
+#app-container * {
+    box-sizing: border-box;
+    font-family: "Segoe UI", Arial, sans-serif;
+}
+
+/* Keep original popup aspect ratio and dimensions */
+#app-container {
+    width: 600px;
+    min-height: 500px;
+    padding: 20px;
+    background: var(--bg-dark);
+    color: var(--text-main);
+}
+
+#popup-view,
+#settings-view {
+    min-height: 460px;
+}
+
+/* Popup layout */
+#popup-view {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+#popup-view h1,
+#settings-view h2 {
+    margin: 0;
+    font-size: 1.45rem;
+    font-weight: 700;
+}
+
+#masterBtn.big-toggle {
+    flex: 1;
+    width: 100%;
+    min-height: 320px;
+    border: 1px solid var(--color-teal-muted);
+    border-radius: 12px;
+    background: var(--surface);
+    color: var(--text-main);
+    font-size: 2.2rem;
+    font-weight: 800;
+    letter-spacing: 0.03em;
+    cursor: pointer;
+}
+
+#masterBtn.big-toggle:focus-visible,
+#goToSettings:focus-visible,
+#backToPopup:focus-visible,
+#path-toggle:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+}
+
+#goToSettings,
+#backToPopup {
+    width: 100%;
+    border: 1px solid var(--color-teal-muted);
+    border-radius: 10px;
+    background: transparent;
+    color: var(--text-main);
+    padding: 11px 14px;
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+/* Settings layout */
+#settings-view {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
+
+#settings-view .card {
+    background: var(--surface);
+    border: 1px solid var(--color-teal-muted);
+    border-radius: 12px;
+    padding: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+#settings-view .card span {
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--text-main);
+}
+
+#path-toggle {
+    width: 22px;
+    height: 22px;
+    accent-color: var(--accent);
+}
 
 /* Website adaptation logic (ONLY triggers on actual websites) */
 body.steady-sync-active {
