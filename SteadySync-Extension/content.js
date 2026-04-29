@@ -385,6 +385,14 @@
         cursor.style.background = 'rgba(54, 125, 138, 0.85)';
       }
 
+      // Wait for the cursor animation to finish, then click
+      setTimeout(() => {
+        isProgrammaticClick = true;
+        bestEl.click();
+        isProgrammaticClick = false;
+      }, 500);
+
+
       if (CONFIG.DEBUG_MODE) {
         console.log(`[Voice Hover] Matched "${spoken}" → `, bestEl, `(score: ${bestScore.toFixed(2)})`);
       }
