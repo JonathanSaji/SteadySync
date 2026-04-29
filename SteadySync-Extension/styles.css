@@ -138,3 +138,8 @@
 body.steady-sync-active {
     border: 10px solid #4285f4 !important;
 }
+
+/*cursor*/
+* {
+  cursor: none !important;
+}
