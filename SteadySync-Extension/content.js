@@ -309,6 +309,18 @@
         console.log(`[Voice Hover] Heard: "${transcript}"`);
       }
 
+      // If user says "click", click the currently hovered element once
+      if (transcript === 'click' && voiceHoveredElement) {
+        if (CONFIG.DEBUG_MODE) {
+          console.log(`[Voice Click] Clicking:`, voiceHoveredElement);
+        }
+        isProgrammaticClick = true;
+        voiceHoveredElement.click();
+        isProgrammaticClick = false;
+        return;
+      }
+
+      // Otherwise try to match spoken text to a button name
       hoverBestMatch(transcript);
     };
 
@@ -325,6 +337,9 @@
     recognition.start();
     console.log("[SteadySync] Voice hover active.");
   }
+
+  // Track the element the voice cursor is currently hovering over
+  let voiceHoveredElement = null;
 
   /**
    * Scores how closely a button label matches the spoken phrase.
@@ -369,6 +384,9 @@
     }
 
     if (bestEl) {
+      // Store the matched element so "click" command can act on it
+      voiceHoveredElement = bestEl;
+
       bestEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
       bestEl.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
       bestEl.focus({ preventScroll: true });
@@ -384,14 +402,6 @@
         cursor.style.top = `${centerY}px`;
         cursor.style.background = 'rgba(54, 125, 138, 0.85)';
       }
-
-      // Wait for the cursor animation to finish, then click
-      setTimeout(() => {
-        isProgrammaticClick = true;
-        bestEl.click();
-        isProgrammaticClick = false;
-      }, 500);
-
 
       if (CONFIG.DEBUG_MODE) {
         console.log(`[Voice Hover] Matched "${spoken}" → `, bestEl, `(score: ${bestScore.toFixed(2)})`);
