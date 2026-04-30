@@ -309,10 +309,10 @@
         console.log(`[Voice Hover] Heard: "${transcript}"`);
       }
 
-      // If user says "click", click the currently hovered element once
-      if (transcript === 'click' && voiceHoveredElement) {
+      // If user says "select", click the currently hovered element once
+      if (transcript === 'select' && voiceHoveredElement) {
         if (CONFIG.DEBUG_MODE) {
-          console.log(`[Voice Click] Clicking:`, voiceHoveredElement);
+          console.log(`[Voice Click] Selecting:`, voiceHoveredElement);
         }
         isProgrammaticClick = true;
         voiceHoveredElement.click();
