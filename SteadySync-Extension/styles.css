@@ -22,6 +22,10 @@
     --glow: 0 0 25px rgba(0, 240, 255, 0.5);
 }
 
+input, textarea {
+    caret-color: #4285f4;
+}
+
 #app-container,
 #app-container * {
     box-sizing: border-box;
@@ -277,4 +281,9 @@ input:checked + .slider:before {
 /* Website adaptation logic */
 body.steady-sync-active {
     border: 10px solid var(--accent) !important;
+}
+
+/*cursor*/
+* {
+  cursor: none !important;
 }

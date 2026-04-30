@@ -3,7 +3,7 @@
   "name": "SteadySync",
   "version": "1.0",
   "description": "Adaptive UI and tremor filtering for a smoother browsing experience.",
-  "permissions": ["scripting", "storage"],
+  "permissions": ["scripting", "storage","microphone"],
   "host_permissions": ["<all_urls>"],
   "options_page": "popup.html",
   "action": {
