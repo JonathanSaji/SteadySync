@@ -282,8 +282,3 @@ input:checked + .slider:before {
 body.steady-sync-active {
     border: 10px solid var(--accent) !important;
 }
-
-/*cursor*/
-* {
-  cursor: none !important;
-}
