@@ -177,14 +177,14 @@
       position: 'fixed',
       width: '16px',
       height: '16px',
-      borderRadius: '50%',
-      background: 'rgba(54, 125, 138, 0.8)',
+      background: 'rgba(66, 133, 244, 0.8)',
       border: '2px solid white',
       pointerEvents: 'none',
       zIndex: '2147483647',
-      transform: 'translate(-50%, -50%)',
+      transform: 'translate(-50%, -50%) rotate(45deg)',
       transition: 'left 0.08s ease, top 0.08s ease',
-      boxShadow: '0 0 6px rgba(0,0,0,0.3)'
+      boxShadow: '0 0 6px rgba(0,0,0,0.3)',
+      clipPath: 'polygon(100% 0%, 0% 50%, 100% 100%)'
     });
     document.body.appendChild(cursor);
 
@@ -208,7 +208,7 @@
 
         cursor.style.left = `${blendX}px`;
         cursor.style.top = `${blendY}px`;
-        cursor.style.background = 'rgba(54, 125, 138, 0.85)';
+        cursor.style.background = 'rgba(66, 133, 244, 0.85)';
       } else {
         // No nearby target — follow real cursor
         cursor.style.left = `${e.clientX}px`;

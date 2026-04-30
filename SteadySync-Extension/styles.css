@@ -18,6 +18,10 @@
     --status-off: #e74c3c; /* Red for 'Inactive' */
 }
 
+input, textarea {
+    caret-color: #4285f4;
+}
+
 #app-container,
 #app-container * {
     box-sizing: border-box;
