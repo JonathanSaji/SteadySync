@@ -309,6 +309,32 @@
         console.log(`[Voice Hover] Heard: "${transcript}"`);
       }
 
+      // If user says "open", open a new browser tab
+      if (transcript === 'open') {
+        if (CONFIG.DEBUG_MODE) {
+          console.log(`[Voice Command] Opening new tab`);
+        }
+        chrome.runtime.sendMessage({ action: 'openNewTab' }, (response) => {
+          if (CONFIG.DEBUG_MODE) {
+            console.log(`[Voice Command] Open tab response:`, response);
+          }
+        });
+        return;
+      }
+
+      // If user says "close", close the current tab
+      if (transcript === 'close') {
+        if (CONFIG.DEBUG_MODE) {
+          console.log(`[Voice Command] Closing current tab`);
+        }
+        chrome.runtime.sendMessage({ action: 'closeCurrentTab' }, (response) => {
+          if (CONFIG.DEBUG_MODE) {
+            console.log(`[Voice Command] Close tab response:`, response);
+          }
+        });
+        return;
+      }
+
       // If user says "select", click the currently hovered element once
       if (transcript === 'select' && voiceHoveredElement) {
         if (CONFIG.DEBUG_MODE) {
