@@ -282,3 +282,26 @@ input:checked + .slider:before {
 body.steady-sync-active {
     border: 10px solid var(--accent) !important;
 }
+
+/* Toggle container with ON/OFF text */
+.toggle-container {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.toggle-status {
+    font-size: 0.85rem;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    min-width: 28px;
+    text-align: right;
+    color: var(--text-main);
+    opacity: 0.6;
+    transition: opacity 0.3s ease, color 0.3s ease;
+}
+
+.toggle-status.active {
+    opacity: 1;
+    color: var(--accent);
+}

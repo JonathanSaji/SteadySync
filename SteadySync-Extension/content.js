@@ -281,160 +281,432 @@
   console.log("Adaptive Click Assistance System loaded.");
 
   //voice detection hovering thingy - jon
-  // --- Voice Hover ---
+  // --- Voice Control Engine (v3 — universal Mac/PC) ---
 
-  function initVoiceHover() {
-    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (!SpeechRecognition) {
-      console.warn("[SteadySync] SpeechRecognition not supported in this browser.");
-      return;
-    }
-
-    const recognition = new SpeechRecognition();
-    recognition.continuous = true;       // Keep listening
-    recognition.interimResults = true;   // Fire events as you speak, not just on silence
-    recognition.lang = 'en-US';
-
-    let lastSpoken = '';
-
-    recognition.onresult = (event) => {
-      // pasted in from FluencySync
-      const result = event.results[event.results.length - 1];
-      const transcript = result[0].transcript.trim().toLowerCase();
-
-      if (transcript === lastSpoken) return;
-      lastSpoken = transcript;
-
-      if (CONFIG.DEBUG_MODE) {
-        console.log(`[Voice Hover] Heard: "${transcript}"`);
-      }
-
-      // If user says "open", open a new browser tab
-      if (transcript === 'open') {
-        if (CONFIG.DEBUG_MODE) {
-          console.log(`[Voice Command] Opening new tab`);
-        }
-        chrome.runtime.sendMessage({ action: 'openNewTab' }, (response) => {
-          if (CONFIG.DEBUG_MODE) {
-            console.log(`[Voice Command] Open tab response:`, response);
-          }
-        });
-        return;
-      }
-
-      // If user says "close", close the current tab
-      if (transcript === 'close') {
-        if (CONFIG.DEBUG_MODE) {
-          console.log(`[Voice Command] Closing current tab`);
-        }
-        chrome.runtime.sendMessage({ action: 'closeCurrentTab' }, (response) => {
-          if (CONFIG.DEBUG_MODE) {
-            console.log(`[Voice Command] Close tab response:`, response);
-          }
-        });
-        return;
-      }
-
-      // If user says "select", click the currently hovered element once
-      if (transcript === 'select' && voiceHoveredElement) {
-        if (CONFIG.DEBUG_MODE) {
-          console.log(`[Voice Click] Selecting:`, voiceHoveredElement);
-        }
-        isProgrammaticClick = true;
-        voiceHoveredElement.click();
-        isProgrammaticClick = false;
-        return;
-      }
-
-      // Otherwise try to match spoken text to a button name
-      hoverBestMatch(transcript);
-    };
-
-    recognition.onerror = (e) => {
-      // 'no-speech' fires often and is harmless — ignore it
-      if (e.error !== 'no-speech') {
-        console.warn('[SteadySync Voice] Error:', e.error);
-      }
-    };
-
-    // Auto-restart if recognition stops (e.g. timeout)
-    recognition.onend = () => recognition.start();
-
-    recognition.start();
-    console.log("[SteadySync] Voice hover active.");
-  }
-
-  // Track the element the voice cursor is currently hovering over
   let voiceHoveredElement = null;
 
-  /**
-   * Scores how closely a button label matches the spoken phrase.
-   * Returns 0–1 (1 = perfect match).
-   */
-  function matchScore(spoken, label) {
-    if (!label) return 0;
-    const a = spoken.toLowerCase();
-    const b = label.toLowerCase();
-    if (b === a) return 1;
-    if (b.includes(a) || a.includes(b)) return 0.8;
-
-    // Count shared words
-    const wordsA = new Set(a.split(/\s+/));
-    const wordsB = b.split(/\s+/);
-    const shared = wordsB.filter(w => wordsA.has(w)).length;
-    return shared / Math.max(wordsA.size, wordsB.length);
+  // --- Voice Feedback HUD ---
+  function createVoiceHUD() {
+    const hud = document.createElement('div');
+    hud.id = 'steadysync-voice-hud';
+    Object.assign(hud.style, {
+      position: 'fixed', bottom: '20px', right: '20px',
+      padding: '10px 18px', borderRadius: '24px',
+      background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(10px)',
+      WebkitBackdropFilter: 'blur(10px)', color: '#fff',
+      fontFamily: 'Inter, system-ui, sans-serif', fontSize: '13px',
+      fontWeight: '500', zIndex: '2147483647', pointerEvents: 'none',
+      transition: 'opacity 0.3s ease', opacity: '0.9',
+      boxShadow: '0 4px 20px rgba(0,0,0,0.3)', maxWidth: '320px'
+    });
+    hud.textContent = '\u{1F3A4} Voice ready';
+    document.body.appendChild(hud);
+    return hud;
   }
 
+  let voiceHUD = null, hudFadeTimer = null;
+  function updateHUD(text, type) {
+    if (!voiceHUD) voiceHUD = createVoiceHUD();
+    const icons = { listening: '\u{1F3A4}', heard: '\u{1F4AC}', matched: '\u2705', command: '\u26A1', error: '\u26A0\uFE0F' };
+    voiceHUD.textContent = `${icons[type] || '\u{1F3A4}'} ${text}`;
+    voiceHUD.style.background = type === 'command' ? 'rgba(34,139,34,0.85)'
+      : type === 'error' ? 'rgba(200,50,50,0.85)'
+      : type === 'matched' ? 'rgba(54,125,138,0.85)'
+      : 'rgba(0,0,0,0.75)';
+    voiceHUD.style.opacity = '0.95';
+    clearTimeout(hudFadeTimer);
+    hudFadeTimer = setTimeout(() => {
+      if (voiceHUD) { voiceHUD.style.opacity = '0.4'; voiceHUD.textContent = '\u{1F3A4} Listening...'; voiceHUD.style.background = 'rgba(0,0,0,0.75)'; }
+    }, 2500);
+  }
 
-  //Finds the element whose label best matches the spoken text and hovers it.
+  // --- Text helpers ---
+  function normalizeText(text) {
+    return (text || '').toLowerCase().replace(/[^\w\s]/g, '').replace(/\s+/g, ' ').trim();
+  }
+
+  /**
+   * Gets the SHORT, readable label for an element.
+   * Prefers aria-label/title, then checks direct text and child headings.
+   * Caps at 80 chars to support longer link text (like search results).
+   */
+  function getElementLabel(el) {
+    const MAX_LEN = 80;
+
+    // Prefer explicit labels first
+    const explicit = el.getAttribute('aria-label') || el.getAttribute('title');
+    if (explicit && explicit.trim()) return explicit.trim().substring(0, MAX_LEN);
+
+    // For inputs, use value or placeholder
+    if (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA') {
+      return (el.value || el.placeholder || '').trim().substring(0, MAX_LEN);
+    }
+
+    // For links: check for heading child (Google search results have <h3> inside <a>)
+    if (el.tagName === 'A') {
+      const heading = el.querySelector('h3, h2, h4, [role="heading"]');
+      if (heading) {
+        const hText = heading.textContent.trim();
+        if (hText && hText.length <= MAX_LEN) return hText;
+      }
+    }
+
+    // Use DIRECT text content: only text nodes that are direct children
+    let directText = '';
+    for (const node of el.childNodes) {
+      if (node.nodeType === Node.TEXT_NODE) {
+        directText += node.textContent;
+      }
+    }
+    directText = directText.trim();
+    if (directText && directText.length <= MAX_LEN) return directText;
+
+    // Fallback: use full textContent but only if reasonably short
+    const full = (el.textContent || '').trim();
+    if (full.length <= MAX_LEN) return full;
+
+    // Too long — skip
+    return '';
+  }
+
+  // --- Matching ---
+  const COMMAND_WORDS = new Set(['select', 'click', 'open', 'close', 'shut']);
+
+  function matchScore(spoken, label) {
+    if (!label) return 0;
+    const a = normalizeText(spoken);
+    const b = normalizeText(label);
+    if (!a || !b) return 0;
+    if (a === b) return 1.0;
+
+    // Check if spoken words contain the full label as a substring
+    if (b.includes(a)) return 0.9;
+    if (a.includes(b)) return 0.85;
+
+    // Word-level: check if any spoken word exactly matches a label word
+    const spokenWords = a.split(/\s+/).filter(w => !COMMAND_WORDS.has(w));
+    const labelWords = b.split(/\s+/);
+
+    if (spokenWords.length === 0 || labelWords.length === 0) return 0;
+
+    // Single-word label: if ANY spoken word matches it exactly, strong match
+    if (labelWords.length === 1) {
+      for (const w of spokenWords) {
+        if (w === labelWords[0]) return 0.95;
+        // Check if very close (off by 1-2 chars) for speech recognition errors
+        if (w.length > 3 && labelWords[0].length > 3) {
+          if (w.startsWith(labelWords[0].substring(0, 3)) || labelWords[0].startsWith(w.substring(0, 3))) return 0.5;
+        }
+      }
+    }
+
+    // Multi-word: count how many label words appear in spoken words
+    const spokenSet = new Set(spokenWords);
+    const sharedCount = labelWords.filter(w => spokenSet.has(w)).length;
+    if (sharedCount === 0) return 0;
+
+    return (sharedCount / labelWords.length) * 0.85;
+  }
 
   function hoverBestMatch(spoken) {
     const elements = getClickableElements();
-    let bestEl = null;
-    let bestScore = 0.4;
+    let bestEl = null, bestScore = 0.3, bestLabel = '';
+
+    // Strip command words from spoken text
+    const cleanSpoken = normalizeText(spoken).split(/\s+/).filter(w => !COMMAND_WORDS.has(w)).join(' ');
+    if (!cleanSpoken) return false;
 
     for (const el of elements) {
-      const label = (
-        el.getAttribute('aria-label') ||
-        el.getAttribute('title') ||
-        el.innerText ||
-        el.value ||
-        ''
-      ).trim();
+      const label = getElementLabel(el);
+      if (!label) continue;
 
-      const score = matchScore(spoken, label);
+      // Skip invisible elements
+      const rect = el.getBoundingClientRect();
+      if (rect.width === 0 || rect.height === 0) continue;
+      if (rect.bottom < 0 || rect.top > window.innerHeight) continue;
+
+      const score = matchScore(cleanSpoken, label);
       if (score > bestScore) {
         bestScore = score;
         bestEl = el;
+        bestLabel = label;
       }
     }
 
     if (bestEl) {
-      // Store the matched element so "click" command can act on it
       voiceHoveredElement = bestEl;
-
       bestEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
       bestEl.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
       bestEl.focus({ preventScroll: true });
 
-      // Move the ghost cursor to the center of the matched button
       const rect = bestEl.getBoundingClientRect();
       const cursor = document.getElementById('steadysync-cursor');
       if (cursor) {
-        const centerX = rect.left + rect.width / 2;
-        const centerY = rect.top + rect.height / 2;
         cursor.style.transition = 'left 0.3s ease, top 0.3s ease';
-        cursor.style.left = `${centerX}px`;
-        cursor.style.top = `${centerY}px`;
+        cursor.style.left = `${rect.left + rect.width / 2}px`;
+        cursor.style.top = `${rect.top + rect.height / 2}px`;
         cursor.style.background = 'rgba(54, 125, 138, 0.85)';
       }
 
-      if (CONFIG.DEBUG_MODE) {
-        console.log(`[Voice Hover] Matched "${spoken}" → `, bestEl, `(score: ${bestScore.toFixed(2)})`);
-      }
+      updateHUD(`Matched: "${bestLabel}"`, 'matched');
+      if (CONFIG.DEBUG_MODE) console.log(`[Voice] Matched "${cleanSpoken}" -> "${bestLabel}" (${bestScore.toFixed(2)})`);
+      return true;
     }
+    return false;
   }
 
-  //starts it allowing the user to hover over buttons by saying their name - jon
-  initVoiceHover();
+  // --- Debounced hover: waits for user to finish speaking before matching ---
+  let hoverDebounceTimer = null;
+  function debouncedHoverMatch(spoken) {
+    // Show what we're hearing in real-time
+    updateHUD(`"${spoken}"`, 'heard');
+    // Wait 800ms of silence before actually matching
+    clearTimeout(hoverDebounceTimer);
+    hoverDebounceTimer = setTimeout(() => {
+      hoverBestMatch(spoken);
+    }, 800);
+  }
+
+  // --- Voice Recognition Engine ---
+  function initVoiceHover() {
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      console.warn("[SteadySync] SpeechRecognition not supported.");
+      updateHUD('Speech not supported', 'error');
+      return;
+    }
+
+    const recognition = new SpeechRecognition();
+    recognition.continuous = true;
+    recognition.interimResults = true;
+    recognition.lang = 'en-US';
+    recognition.maxAlternatives = 3;
+
+    // Command map
+    const COMMANDS = { 'select': 'select', 'click': 'select', 'open': 'open', 'close': 'close', 'shut': 'close' };
+
+    function extractCommand(transcript) {
+      const words = normalizeText(transcript).split(/\s+/);
+      // Only check the LAST word — prevents re-firing from accumulated transcripts
+      const lastWord = words[words.length - 1];
+      if (COMMANDS[lastWord]) return COMMANDS[lastWord];
+      return null;
+    }
+
+    function extractButtonWords(transcript) {
+      return normalizeText(transcript).split(/\s+/).filter(w => !COMMAND_WORDS.has(w)).join(' ');
+    }
+
+    // Cooldown to prevent double-fire but allow intentional repeats
+    const cooldowns = {};
+    function isOnCooldown(cmd) { return (Date.now() - (cooldowns[cmd] || 0)) < 1500; }
+    function setCooldown(cmd) { cooldowns[cmd] = Date.now(); }
+
+    // Track the transcript that last triggered a command, so accumulated
+    // transcripts (e.g. "open" → "open videos") don't re-fire the old command
+    let lastExecutedTranscript = '';
+
+    function executeCommand(cmd) {
+      if (isOnCooldown(cmd)) return;
+      setCooldown(cmd);
+
+      if (cmd === 'select') {
+        if (voiceHoveredElement) {
+          updateHUD(`Selected: "${getElementLabel(voiceHoveredElement)}"`, 'command');
+          if (CONFIG.DEBUG_MODE) console.log('[Voice] SELECT:', voiceHoveredElement);
+          isProgrammaticClick = true;
+          voiceHoveredElement.click();
+          isProgrammaticClick = false;
+        } else {
+          updateHUD('Say a button name first', 'error');
+        }
+      } else if (cmd === 'open') {
+        updateHUD('Opening new tab...', 'command');
+        chrome.runtime.sendMessage({ action: 'openNewTab' });
+      } else if (cmd === 'close') {
+        updateHUD('Closing tab...', 'command');
+        chrome.runtime.sendMessage({ action: 'closeCurrentTab' });
+      }
+    }
+
+    // --- KEY FIX: Debounce-based command execution ---
+    // Don't rely on isFinal (broken on Mac). Instead, when we see a command
+    // word stay stable for 350ms, execute it. This works on ALL platforms.
+    let commandDebounceTimer = null;
+    let lastSeenCommand = null;
+    let lastTranscript = '';
+
+    function processTranscript(transcript) {
+      if (!transcript) return;
+
+      const command = extractCommand(transcript);
+      const buttonPart = extractButtonWords(transcript);
+
+      if (command) {
+        // If there's a command, match the button part immediately then execute
+        clearTimeout(hoverDebounceTimer);
+        if (buttonPart) hoverBestMatch(buttonPart);
+
+        // Skip if this transcript is just an accumulation of one that already fired
+        if (lastExecutedTranscript && transcript.startsWith(lastExecutedTranscript)) return;
+        if (command === lastSeenCommand && transcript === lastTranscript) return;
+
+        lastSeenCommand = command;
+        lastTranscript = transcript;
+
+        clearTimeout(commandDebounceTimer);
+        commandDebounceTimer = setTimeout(() => {
+          executeCommand(command);
+          lastExecutedTranscript = transcript;
+          lastSeenCommand = null;
+          lastTranscript = '';
+        }, 350);
+      } else {
+        // No command — debounce the hover match (wait for user to finish speaking)
+        clearTimeout(commandDebounceTimer);
+        lastSeenCommand = null;
+        if (buttonPart) debouncedHoverMatch(buttonPart);
+      }
+    }
+
+    recognition.onresult = (event) => {
+      const latest = event.results[event.results.length - 1];
+      const transcript = latest[0].transcript.trim().toLowerCase();
+
+      if (latest.isFinal) {
+        clearTimeout(commandDebounceTimer);
+        const command = extractCommand(transcript);
+        const buttonPart = extractButtonWords(transcript);
+        if (buttonPart) hoverBestMatch(buttonPart);
+
+        // Only execute if not already handled from a prior accumulated transcript
+        if (command && !(lastExecutedTranscript && transcript.startsWith(lastExecutedTranscript))) {
+          executeCommand(command);
+          lastExecutedTranscript = transcript;
+        } else if (!command) {
+          hoverBestMatch(transcript);
+        }
+
+        updateHUD(`"${transcript}"`, 'heard');
+        if (CONFIG.DEBUG_MODE) console.log(`[Voice] Final: "${transcript}"`);
+
+        // Reset for next speech segment
+        lastExecutedTranscript = '';
+      } else {
+        processTranscript(transcript);
+        if (CONFIG.DEBUG_MODE) console.log(`[Voice] Interim: "${transcript}"`);
+      }
+    };
+
+    // --- Robust restart ---
+    let restartAttempts = 0;
+
+    recognition.onerror = (e) => {
+      if (e.error === 'no-speech' || e.error === 'aborted') return;
+      if (e.error === 'not-allowed' || e.error === 'service-not-allowed') {
+        updateHUD('Mic blocked — check permissions', 'error');
+        console.error('[SteadySync] Mic permission denied. Check address bar lock icon.');
+        return;
+      }
+      if (e.error === 'audio-capture') {
+        updateHUD('No microphone found', 'error');
+        return;
+      }
+      console.warn('[SteadySync Voice] Error:', e.error);
+    };
+
+    recognition.onend = () => {
+      if (!voiceControlActive) return; // Don't restart if voice was turned off
+      const delay = Math.min(100 * Math.pow(2, restartAttempts), 5000);
+      setTimeout(() => {
+        if (!voiceControlActive) return;
+        try { recognition.start(); restartAttempts = Math.max(0, restartAttempts - 1); }
+        catch (err) { restartAttempts++; }
+      }, delay);
+    };
+
+    recognition.onstart = () => {
+      restartAttempts = 0;
+      updateHUD('Listening...', 'listening');
+    };
+
+    try {
+      recognition.start();
+      console.log("[SteadySync] Voice control active.");
+    } catch (err) {
+      console.error('[SteadySync Voice] Failed to start:', err.message);
+      updateHUD('Voice failed to start', 'error');
+    }
+
+    return recognition;
+  }
+
+  // --- Feature enable/disable via storage ---
+  let voiceControlActive = false;
+  let activeRecognition = null;
+
+  function enableVoice() {
+    if (voiceControlActive) return;
+    voiceControlActive = true;
+    activeRecognition = initVoiceHover();
+    console.log('[SteadySync] Voice control enabled.');
+  }
+
+  function disableVoice() {
+    voiceControlActive = false;
+    if (activeRecognition) {
+      try { activeRecognition.abort(); } catch (e) {}
+      activeRecognition = null;
+    }
+    // Hide HUD
+    const hud = document.getElementById('steadysync-voice-hud');
+    if (hud) hud.style.display = 'none';
+    console.log('[SteadySync] Voice control disabled.');
+  }
+
+  function enableHitbox() {
+    CONFIG.DEBUG_MODE = true;
+    if (debugBox) debugBox.style.display = '';
+    console.log('[SteadySync] Hitbox display enabled.');
+  }
+
+  function disableHitbox() {
+    CONFIG.DEBUG_MODE = false;
+    if (debugBox) debugBox.style.display = 'none';
+    console.log('[SteadySync] Hitbox display disabled.');
+  }
+
+  // Check storage on load and init features accordingly
+  chrome.storage.local.get(['hitboxEnabled', 'voiceEnabled'], (result) => {
+    if (result.hitboxEnabled) {
+      enableHitbox();
+    } else {
+      disableHitbox();
+    }
+
+    if (result.voiceEnabled) {
+      enableVoice();
+    }
+  });
+
+  // Listen for setting changes from the popup
+  chrome.storage.onChanged.addListener((changes, area) => {
+    if (area !== 'local') return;
+
+    if (changes.hitboxEnabled) {
+      if (changes.hitboxEnabled.newValue) {
+        enableHitbox();
+      } else {
+        disableHitbox();
+      }
+    }
+
+    if (changes.voiceEnabled) {
+      if (changes.voiceEnabled.newValue) {
+        enableVoice();
+      } else {
+        disableVoice();
+      }
+    }
+  });
 })();
