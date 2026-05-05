@@ -63,7 +63,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     // --- Load saved states ---
-    chrome.storage.local.get(["pathToggleEnabled", "hitboxEnabled", "voiceEnabled"], (result) => {
+    chrome.storage.local.get(["pathToggleEnabled", "hitboxEnabled", "snapEnabled", "voiceEnabled"], (result) => {
         pathToggle.checked = Boolean(result.pathToggleEnabled);
         hitboxToggle.checked = Boolean(result.hitboxEnabled);
         snapToggle.checked = Boolean(result.snapEnabled);

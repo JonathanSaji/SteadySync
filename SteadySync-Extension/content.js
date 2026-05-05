@@ -30,11 +30,37 @@
   // --- State Variables ---
   let cursorHistory = [];
   let isProgrammaticClick = false;
+  let snapEnabled = false;
 
   // Steady Mouse Tracking
   let realMouse = { x: 0, y: 0 };
   let virtualMouse = { x: 0, y: 0 };
 
+
+
+  // --- Storage Helpers ---
+  function setSnapEnabled(enabled) {
+    snapEnabled = Boolean(enabled);
+  }
+
+  function loadSnapEnabled() {
+    if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
+      chrome.storage.local.get(['snapEnabled'], (result) => {
+        setSnapEnabled(result.snapEnabled);
+      });
+    }
+  }
+
+  if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.onChanged) {
+    chrome.storage.onChanged.addListener((changes, area) => {
+      if (area !== 'local') return;
+      if (changes.snapEnabled) {
+        setSnapEnabled(changes.snapEnabled.newValue);
+      }
+    });
+  }
+
+  loadSnapEnabled();
 
 
   // --- Helpers ---
@@ -116,6 +142,10 @@
    * Finds the best target element near the given coordinates.
    */
   function findNearestTarget(mouseX, mouseY, stabilityScore) {
+    if (!snapEnabled) {
+      return null;
+    }
+
     const elements = getClickableElements();
     let nearestElement = null;
     let minDistance = Infinity;
@@ -221,11 +251,11 @@ function initVisualCursor() {
       const stabilityScore = calculateStabilityScore();
       
       // Find potential targets based on where the SMOOTH cursor is
-      const target = findNearestTarget(virtualMouse.x, virtualMouse.y, stabilityScore);
+      const target = snapEnabled ? findNearestTarget(virtualMouse.x, virtualMouse.y, stabilityScore) : null;
 
       // RELEASE MECHANISM: Check if the REAL mouse has moved too far away from the snapped target
       let shouldSnap = false;
-      if (target || voiceHoveredElement) {
+      if (snapEnabled && (target || voiceHoveredElement)) {
         const activeTarget = voiceHoveredElement || target;
         const rect = activeTarget.getBoundingClientRect();
         const centerX = rect.left + rect.width / 2;
@@ -269,9 +299,7 @@ function initVisualCursor() {
   // Intercept clicks to apply snap logic
   document.addEventListener('click', (event) => {
     if (isProgrammaticClick) return; // Prevent infinite loops from our own synthetic clicks
-
-    const stabilityScore = calculateStabilityScore();
-    const target = findNearestTarget(virtualMouse.x, virtualMouse.y, stabilityScore);
+    if (!snapEnabled) return;
 
     // If a target is found AND the user didn't natively click inside the target (or its children)
     if (target && !target.contains(event.target)) {
