@@ -7,6 +7,8 @@
  * - Smart Hitbox Expansion: Expands clickable areas dynamically based on tremor severity.
  * - Nearest Target Detection: Finds the most likely target when the user clicks near an element.
  * - Click Override: Redirects missed clicks to the intended element.
+ * - Steady Mouse: Tremor Filtering via Lerp
+ * - Voice Control Engine: Element matching and HUD
  */
 
 (function () {
@@ -19,6 +21,8 @@
     MAX_TREMOR_EXPANSION_PX: 40,     // Extra padding added based on severity of tremor (px)
     MAX_SNAP_DISTANCE_PX: 100,       // Absolute max distance a click can snap (px)
 
+    SMOOTHING_FACTOR: 0.1,          // Steady Mouse smoothing (Lower = smoother but more lag)
+
     // Developer options
     DEBUG_MODE: true                 // Set to true to visualize expanded hitboxes
   };
@@ -26,6 +30,12 @@
   // --- State Variables ---
   let cursorHistory = [];
   let isProgrammaticClick = false;
+
+  // Steady Mouse Tracking
+  let realMouse = { x: 0, y: 0 };
+  let virtualMouse = { x: 0, y: 0 };
+
+
 
   // --- Helpers ---
 
@@ -88,6 +98,9 @@
     const last = cursorHistory[cursorHistory.length - 1];
     const netDisplacement = getDistance(first.x, first.y, last.x, last.y);
 
+    if (pathDistance < CONFIG.MIN_MOVEMENT_PX) return 0; 
+
+
     if (pathDistance < CONFIG.MIN_MOVEMENT_PX) {
       return 0; // Not enough movement to confidently detect tremor
     }
@@ -96,6 +109,7 @@
     // Straight line movement ≈ 0. Shaky/circular movement ≈ 1.
     const score = 1 - (netDisplacement / pathDistance);
     return Math.max(0, Math.min(1, score)); // Clamp between 0 and 1
+
   }
 
   /**
@@ -151,6 +165,10 @@
 
   // Track cursor movement
   document.addEventListener('mousemove', (event) => {
+    // Track the raw, shaky input for the Steady Mouse loop
+    realMouse.x = event.clientX;
+    realMouse.y = event.clientY;
+    
     updateCursorHistory(event.clientX, event.clientY);
 
     if (CONFIG.DEBUG_MODE) {
@@ -158,7 +176,7 @@
       if (!window.__debugDrawing) {
         window.__debugDrawing = true;
         requestAnimationFrame(() => {
-          drawDebugHitboxes(event.clientX, event.clientY, calculateStabilityScore());
+          drawDebugHitboxes(virtualMouse.x, virtualMouse.y, calculateStabilityScore());
           window.__debugDrawing = false;
         });
       }
@@ -168,9 +186,7 @@
   // --- Visual Cursor Overlay ---
   // Shows a snapping "ghost cursor" near interactive elements
 
-  document.documentElement.style.setProperty('cursor', 'none', 'important');
-
-  function initVisualCursor() {
+function initVisualCursor() {
     const cursor = document.createElement('div');
     cursor.id = 'steadysync-cursor';
     Object.assign(cursor.style, {
@@ -182,40 +198,70 @@
       pointerEvents: 'none',
       zIndex: '2147483647',
       transform: 'translate(-50%, -50%) rotate(45deg)',
-      transition: 'left 0.08s ease, top 0.08s ease',
+      transition: 'background 0.2s ease', 
       boxShadow: '0 0 6px rgba(0,0,0,0.3)',
       clipPath: 'polygon(100% 0%, 0% 50%, 100% 100%)'
     });
     document.body.appendChild(cursor);
 
+    // Replace the style logic in initVisualCursor()
     const style = document.createElement('style');
-    style.textContent = '* { cursor: none !important; }';
-    document.head.appendChild(style)
-
-    document.addEventListener('mousemove', (e) => {
-      const stabilityScore = calculateStabilityScore();
-      const target = findNearestTarget(e.clientX, e.clientY, stabilityScore);
-
-      if (target) {
-        // Snap the visual cursor to the center of the nearest target
-        const rect = target.getBoundingClientRect();
-        const snapX = rect.left + rect.width / 2;
-        const snapY = rect.top + rect.height / 2;
-
-        // Blend between real position and snapped position based on tremor
-        const blendX = e.clientX + (snapX - e.clientX) * stabilityScore * 0.6;
-        const blendY = e.clientY + (snapY - e.clientY) * stabilityScore * 0.6;
-
-        cursor.style.left = `${blendX}px`;
-        cursor.style.top = `${blendY}px`;
-        cursor.style.background = 'rgba(66, 133, 244, 0.85)';
-      } else {
-        // No nearby target — follow real cursor
-        cursor.style.left = `${e.clientX}px`;
-        cursor.style.top = `${e.clientY}px`;
-        cursor.style.background = 'rgba(100, 100, 100, 0.5)';
+    // This creates a tiny 4px black dot as the "real" cursor
+    style.textContent = `
+      * { 
+        cursor: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="8" height="8" viewBox="0 0 8 8"><circle cx="4" cy="4" r="2" fill="black" stroke="white" stroke-width="1"/></svg>') 4 4, auto !important; 
       }
-    }, { passive: true });
+    `;
+    document.head.appendChild(style);
+
+    // REMOVED: The empty duplicate function renderLoop(){} was here causing the bug.
+
+    // Correct Steady Mouse Smoothing Loop
+    function renderLoop() {
+      const stabilityScore = calculateStabilityScore();
+      
+      // Find potential targets based on where the SMOOTH cursor is
+      const target = findNearestTarget(virtualMouse.x, virtualMouse.y, stabilityScore);
+
+      // RELEASE MECHANISM: Check if the REAL mouse has moved too far away from the snapped target
+      let shouldSnap = false;
+      if (target || voiceHoveredElement) {
+        const activeTarget = voiceHoveredElement || target;
+        const rect = activeTarget.getBoundingClientRect();
+        const centerX = rect.left + rect.width / 2;
+        const centerY = rect.top + rect.height / 2;
+
+        // If the real mouse is more than 120px away from the button center, "break" the snap
+        const distanceToReal = getDistance(realMouse.x, realMouse.y, centerX, centerY);
+        
+        if (distanceToReal < 120 || voiceHoveredElement) {
+          shouldSnap = true;
+          // Smoothly pull toward the center
+          virtualMouse.x += (centerX - virtualMouse.x) * 0.25;
+          virtualMouse.y += (centerY - virtualMouse.y) * 0.25;
+          cursor.style.background = 'rgba(66, 133, 244, 0.7)'; 
+        }
+      }
+
+      // If we aren't snapping (or we "broke" the snap), follow the real mouse normally
+      if (!shouldSnap) {
+        const adaptiveFactor = CONFIG.SMOOTHING_FACTOR - (stabilityScore * 0.1);
+        const factor = Math.max(0.04, adaptiveFactor);
+
+        virtualMouse.x += (realMouse.x - virtualMouse.x) * factor;
+        virtualMouse.y += (realMouse.y - virtualMouse.y) * factor;
+        cursor.style.background = 'rgba(100, 100, 100, 0.4)';
+      }
+
+      // Apply coordinates to the visual element
+      cursor.style.left = `${virtualMouse.x}px`;
+      cursor.style.top = `${virtualMouse.y}px`;
+
+      requestAnimationFrame(renderLoop);
+    }
+    
+    // Start the loop
+    requestAnimationFrame(renderLoop);
   }
 
   initVisualCursor();
@@ -225,7 +271,7 @@
     if (isProgrammaticClick) return; // Prevent infinite loops from our own synthetic clicks
 
     const stabilityScore = calculateStabilityScore();
-    const target = findNearestTarget(event.clientX, event.clientY, stabilityScore);
+    const target = findNearestTarget(virtualMouse.x, virtualMouse.y, stabilityScore);
 
     // If a target is found AND the user didn't natively click inside the target (or its children)
     if (target && !target.contains(event.target)) {
@@ -440,13 +486,9 @@
       bestEl.focus({ preventScroll: true });
 
       const rect = bestEl.getBoundingClientRect();
-      const cursor = document.getElementById('steadysync-cursor');
-      if (cursor) {
-        cursor.style.transition = 'left 0.3s ease, top 0.3s ease';
-        cursor.style.left = `${rect.left + rect.width / 2}px`;
-        cursor.style.top = `${rect.top + rect.height / 2}px`;
-        cursor.style.background = 'rgba(54, 125, 138, 0.85)';
-      }
+      // KEY CHANGE: Sync Voice Match with the Steady Mouse virtual cursor coordinates
+      virtualMouse.x = rect.left + rect.width / 2;
+      virtualMouse.y = rect.top + rect.height / 2;
 
       updateHUD(`Matched: "${bestLabel}"`, 'matched');
       if (CONFIG.DEBUG_MODE) console.log(`[Voice] Matched "${cleanSpoken}" -> "${bestLabel}" (${bestScore.toFixed(2)})`);
