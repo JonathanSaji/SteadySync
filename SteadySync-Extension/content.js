@@ -193,8 +193,8 @@ function initVisualCursor() {
       position: 'fixed',
       width: '16px',
       height: '16px',
-      background: 'rgba(66, 133, 244, 0.8)',
-      border: '2px solid white',
+      background: 'rgb(255, 255, 255)',
+      border: 'rgba(0, 0, 0, 0.8) solid 2px',
       pointerEvents: 'none',
       zIndex: '2147483647',
       transform: 'translate(-50%, -50%) rotate(45deg)',
@@ -239,7 +239,7 @@ function initVisualCursor() {
           // Smoothly pull toward the center
           virtualMouse.x += (centerX - virtualMouse.x) * 0.25;
           virtualMouse.y += (centerY - virtualMouse.y) * 0.25;
-          cursor.style.background = 'rgba(66, 133, 244, 0.7)'; 
+          cursor.style.border = 'rgb(227, 14, 14) solid 3px'; 
         }
       }
 
@@ -250,7 +250,7 @@ function initVisualCursor() {
 
         virtualMouse.x += (realMouse.x - virtualMouse.x) * factor;
         virtualMouse.y += (realMouse.y - virtualMouse.y) * factor;
-        cursor.style.background = 'rgba(100, 100, 100, 0.4)';
+        cursor.style.border = 'rgb(0, 0, 0) solid 2px';
       }
 
       // Apply coordinates to the visual element
