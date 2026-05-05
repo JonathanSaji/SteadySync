@@ -617,9 +617,11 @@
 
     recognition.onend = () => {
       if (!voiceControlActive) return; // Don't restart if voice was turned off
+      if (document.visibilityState !== 'visible') return; // Don't restart if tab is hidden
       const delay = Math.min(100 * Math.pow(2, restartAttempts), 5000);
       setTimeout(() => {
         if (!voiceControlActive) return;
+        if (document.visibilityState !== 'visible') return;
         try { recognition.start(); restartAttempts = Math.max(0, restartAttempts - 1); }
         catch (err) { restartAttempts++; }
       }, delay);
@@ -642,27 +644,56 @@
   }
 
   // --- Feature enable/disable via storage ---
-  let voiceControlActive = false;
+  let voiceControlActive = false;   // User's preference (toggle in popup)
   let activeRecognition = null;
+  let voiceRunning = false;         // Is recognition actually running right now?
+
+  /** Start recognition only if user wants voice AND this tab is visible. */
+  function startRecognitionIfVisible() {
+    if (!voiceControlActive) return;
+    if (document.visibilityState !== 'visible') return;
+    if (voiceRunning) return; // Already running
+    activeRecognition = initVoiceHover();
+    voiceRunning = true;
+    console.log('[SteadySync] Voice started (tab visible).');
+  }
+
+  /** Stop recognition (tab hidden or user disabled). */
+  function stopRecognition() {
+    voiceRunning = false;
+    if (activeRecognition) {
+      try { activeRecognition.abort(); } catch (e) {}
+      activeRecognition = null;
+    }
+  }
 
   function enableVoice() {
     if (voiceControlActive) return;
     voiceControlActive = true;
-    activeRecognition = initVoiceHover();
+    startRecognitionIfVisible();
     console.log('[SteadySync] Voice control enabled.');
   }
 
   function disableVoice() {
     voiceControlActive = false;
-    if (activeRecognition) {
-      try { activeRecognition.abort(); } catch (e) {}
-      activeRecognition = null;
-    }
+    stopRecognition();
     // Hide HUD
     const hud = document.getElementById('steadysync-voice-hud');
     if (hud) hud.style.display = 'none';
     console.log('[SteadySync] Voice control disabled.');
   }
+
+  // --- Tab visibility: only hold mic on the active tab ---
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') {
+      startRecognitionIfVisible();
+    } else {
+      if (voiceRunning) {
+        stopRecognition();
+        console.log('[SteadySync] Voice paused (tab hidden).');
+      }
+    }
+  });
 
   function enableHitbox() {
     CONFIG.DEBUG_MODE = true;
