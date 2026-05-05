@@ -5,11 +5,13 @@ document.addEventListener("DOMContentLoaded", () => {
     const backToPopupButton = document.getElementById("backToPopup");
     const pathToggle = document.getElementById("path-toggle");
     const hitboxToggle = document.getElementById("hitbox-toggle");
+    const snapToggle = document.getElementById("snap-toggle");
     const voiceToggle = document.getElementById("voice-toggle");
 
     // Status text elements
     const pathStatus = document.getElementById("path-status");
     const hitboxStatus = document.getElementById("hitbox-status");
+    const snapStatus = document.getElementById("snap-status");
     const voiceStatus = document.getElementById("voice-status");
     
     // Theme toggle elements
@@ -35,7 +37,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     // --- Helper: check if any feature is on ---
     function isAnyFeatureOn() {
-        return pathToggle.checked || hitboxToggle.checked || voiceToggle.checked;
+        return pathToggle.checked || hitboxToggle.checked || snapToggle.checked || voiceToggle.checked;
     }
 
     // --- Helper: update system button to match feature state ---
@@ -55,6 +57,7 @@ document.addEventListener("DOMContentLoaded", () => {
         chrome.storage.local.set({
             pathToggleEnabled: pathToggle.checked,
             hitboxEnabled: hitboxToggle.checked,
+            snapEnabled: snapToggle.checked,
             voiceEnabled: voiceToggle.checked
         });
     }
@@ -63,10 +66,12 @@ document.addEventListener("DOMContentLoaded", () => {
     chrome.storage.local.get(["pathToggleEnabled", "hitboxEnabled", "voiceEnabled"], (result) => {
         pathToggle.checked = Boolean(result.pathToggleEnabled);
         hitboxToggle.checked = Boolean(result.hitboxEnabled);
+        snapToggle.checked = Boolean(result.snapEnabled);
         voiceToggle.checked = Boolean(result.voiceEnabled);
 
         updateStatusLabel(pathStatus, pathToggle.checked);
         updateStatusLabel(hitboxStatus, hitboxToggle.checked);
+        updateStatusLabel(snapStatus, snapToggle.checked);
         updateStatusLabel(voiceStatus, voiceToggle.checked);
         syncSystemButton();
     });
@@ -80,6 +85,12 @@ document.addEventListener("DOMContentLoaded", () => {
 
     hitboxToggle.addEventListener("change", () => {
         updateStatusLabel(hitboxStatus, hitboxToggle.checked);
+        saveFeatureStates();
+        syncSystemButton();
+    });
+
+    snapToggle.addEventListener("change", () => {
+        updateStatusLabel(snapStatus, snapToggle.checked);
         saveFeatureStates();
         syncSystemButton();
     });
@@ -123,32 +134,38 @@ document.addEventListener("DOMContentLoaded", () => {
             chrome.storage.local.set({
                 savedPathToggle: pathToggle.checked,
                 savedHitboxToggle: hitboxToggle.checked,
+                savedSnapToggle: snapToggle.checked,
                 savedVoiceToggle: voiceToggle.checked
             });
 
             pathToggle.checked = false;
             hitboxToggle.checked = false;
+            snapToggle.checked = false;
             voiceToggle.checked = false;
 
             updateStatusLabel(pathStatus, false);
             updateStatusLabel(hitboxStatus, false);
+            updateStatusLabel(snapStatus, false);
             updateStatusLabel(voiceStatus, false);
             saveFeatureStates();
             syncSystemButton();
         } else {
             // System is OFF -> restore previously saved selections
-            chrome.storage.local.get(["savedPathToggle", "savedHitboxToggle", "savedVoiceToggle"], (result) => {
+            chrome.storage.local.get(["savedPathToggle", "savedHitboxToggle", "savedSnapToggle", "savedVoiceToggle"], (result) => {
                 // If nothing was saved before, turn on hitbox and voice by default
                 const restorePath = Boolean(result.savedPathToggle);
                 const restoreHitbox = result.savedHitboxToggle !== undefined ? Boolean(result.savedHitboxToggle) : true;
+                const restoreSnap = result.savedSnapToggle !== undefined ? Boolean(result.savedSnapToggle) : true;
                 const restoreVoice = result.savedVoiceToggle !== undefined ? Boolean(result.savedVoiceToggle) : true;
 
                 pathToggle.checked = restorePath;
                 hitboxToggle.checked = restoreHitbox;
+                snapToggle.checked = restoreSnap;
                 voiceToggle.checked = restoreVoice;
 
                 updateStatusLabel(pathStatus, restorePath);
                 updateStatusLabel(hitboxStatus, restoreHitbox);
+                updateStatusLabel(snapStatus, restoreSnap);
                 updateStatusLabel(voiceStatus, restoreVoice);
                 saveFeatureStates();
                 syncSystemButton();
