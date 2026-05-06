@@ -251,21 +251,37 @@ function initVisualCursor() {
 
       // RELEASE MECHANISM: Check if the REAL mouse has moved too far away from the snapped target
       let shouldSnap = false;
-      if (snapEnabled && (target || voiceHoveredElement)) {
+      if ((snapEnabled && target) || voiceHoveredElement) {
         const activeTarget = voiceHoveredElement || target;
         const rect = activeTarget.getBoundingClientRect();
         const centerX = rect.left + rect.width / 2;
         const centerY = rect.top + rect.height / 2;
 
-        // If the real mouse is more than 120px away from the button center, "break" the snap
-        const distanceToReal = getDistance(realMouse.x, realMouse.y, centerX, centerY);
-        
-        if (distanceToReal < 120 || voiceHoveredElement) {
-          shouldSnap = true;
+        if (voiceHoveredElement) {
+          const moveFromAnchor = voiceLockAnchor
+            ? getDistance(realMouse.x, realMouse.y, voiceLockAnchor.x, voiceLockAnchor.y)
+            : 0;
+
+          if (moveFromAnchor > 90) {
+            // User intentionally moved after voice lock: release.
+            voiceHoveredElement = null;
+            voiceLockAnchor = null;
+          } else {
+            shouldSnap = true;
+          }
+        } else {
+          // Snap mode release mechanism (non-voice target)
+          const distanceToReal = getDistance(realMouse.x, realMouse.y, centerX, centerY);
+          if (distanceToReal < 120) {
+            shouldSnap = true;
+          }
+        }
+
+        if (shouldSnap) {
           // Smoothly pull toward the center
           virtualMouse.x += (centerX - virtualMouse.x) * 0.25;
           virtualMouse.y += (centerY - virtualMouse.y) * 0.25;
-          cursor.style.border = 'rgb(227, 14, 14) solid 3px'; 
+          cursor.style.border = 'rgb(227, 14, 14) solid 3px';
         }
       }
 
@@ -354,6 +370,7 @@ function initVisualCursor() {
   // --- Voice Control Engine (v3 — universal Mac/PC) ---
 
   let voiceHoveredElement = null;
+  let voiceLockAnchor = null;
 
   // --- Voice Feedback HUD ---
   function createVoiceHUD() {
@@ -505,6 +522,7 @@ function initVisualCursor() {
 
     if (bestEl) {
       voiceHoveredElement = bestEl;
+      voiceLockAnchor = { x: realMouse.x, y: realMouse.y };
       bestEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
       bestEl.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
       bestEl.focus({ preventScroll: true });
@@ -720,6 +738,7 @@ function initVisualCursor() {
 
   function disableVoice() {
     voiceControlActive = false;
+    voiceLockAnchor = null;
     if (activeRecognition) {
       try { activeRecognition.abort(); } catch (e) {}
       activeRecognition = null;
