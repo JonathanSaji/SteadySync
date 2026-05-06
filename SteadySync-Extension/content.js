@@ -31,6 +31,7 @@
   let cursorHistory = [];
   let isProgrammaticClick = false;
   let snapEnabled = false;
+  let steadyMouseEnabled = false;
 
   // Steady Mouse Tracking
   let realMouse = { x: 0, y: 0 };
@@ -124,7 +125,7 @@
     const last = cursorHistory[cursorHistory.length - 1];
     const netDisplacement = getDistance(first.x, first.y, last.x, last.y);
 
-    if (pathDistance < CONFIG.MIN_MOVEMENT_PX) return 0; 
+    if (pathDistance < CONFIG.MIN_MOVEMENT_PX) return 0;
 
 
     if (pathDistance < CONFIG.MIN_MOVEMENT_PX) {
@@ -194,7 +195,7 @@
     // Track the raw, shaky input for the Steady Mouse loop
     realMouse.x = event.clientX;
     realMouse.y = event.clientY;
-    
+
     updateCursorHistory(event.clientX, event.clientY);
 
     if (CONFIG.DEBUG_MODE) {
@@ -212,7 +213,7 @@
   // --- Visual Cursor Overlay ---
   // Shows a snapping "ghost cursor" near interactive elements
 
-function initVisualCursor() {
+  function initVisualCursor() {
     const cursor = document.createElement('div');
     cursor.id = 'steadysync-cursor';
     Object.assign(cursor.style, {
@@ -224,7 +225,7 @@ function initVisualCursor() {
       pointerEvents: 'none',
       zIndex: '2147483647',
       transform: 'translate(-50%, -50%) rotate(45deg)',
-      transition: 'background 0.2s ease', 
+      transition: 'background 0.2s ease',
       boxShadow: '0 0 6px rgba(0,0,0,0.3)',
       clipPath: 'polygon(100% 0%, 0% 50%, 100% 100%)'
     });
@@ -232,10 +233,10 @@ function initVisualCursor() {
 
     // Replace the style logic in initVisualCursor()
     const style = document.createElement('style');
-    // This creates a tiny 4px black dot as the "real" cursor
+    // Hide the native cursor so only the virtual cursor is visible
     style.textContent = `
       * { 
-        cursor: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="8" height="8" viewBox="0 0 8 8"><circle cx="4" cy="4" r="2" fill="black" stroke="white" stroke-width="1"/></svg>') 4 4, auto !important; 
+        cursor: none !important;
       }
     `;
     document.head.appendChild(style);
@@ -245,7 +246,7 @@ function initVisualCursor() {
     // Correct Steady Mouse Smoothing Loop
     function renderLoop() {
       const stabilityScore = calculateStabilityScore();
-      
+
       // Find potential targets based on where the SMOOTH cursor is
       const target = snapEnabled ? findNearestTarget(virtualMouse.x, virtualMouse.y, stabilityScore) : null;
 
@@ -287,11 +288,17 @@ function initVisualCursor() {
 
       // If we aren't snapping (or we "broke" the snap), follow the real mouse normally
       if (!shouldSnap) {
-        const adaptiveFactor = CONFIG.SMOOTHING_FACTOR - (stabilityScore * 0.1);
-        const factor = Math.max(0.04, adaptiveFactor);
-
-        virtualMouse.x += (realMouse.x - virtualMouse.x) * factor;
-        virtualMouse.y += (realMouse.y - virtualMouse.y) * factor;
+        if (steadyMouseEnabled) {
+          // Smooth lerp: virtual cursor lags behind real cursor to filter tremor
+          const adaptiveFactor = CONFIG.SMOOTHING_FACTOR - (stabilityScore * 0.1);
+          const factor = Math.max(0.04, adaptiveFactor);
+          virtualMouse.x += (realMouse.x - virtualMouse.x) * factor;
+          virtualMouse.y += (realMouse.y - virtualMouse.y) * factor;
+        } else {
+          // Steady Mouse OFF: virtual cursor tracks real cursor 1:1
+          virtualMouse.x = realMouse.x;
+          virtualMouse.y = realMouse.y;
+        }
         cursor.style.border = 'rgb(0, 0, 0) solid 2px';
       }
 
@@ -301,7 +308,7 @@ function initVisualCursor() {
 
       requestAnimationFrame(renderLoop);
     }
-    
+
     // Start the loop
     requestAnimationFrame(renderLoop);
   }
@@ -371,6 +378,7 @@ function initVisualCursor() {
 
   let voiceHoveredElement = null;
   let voiceLockAnchor = null;
+  let lastVoiceMatchedElement = null;
 
   // --- Voice Feedback HUD ---
   function createVoiceHUD() {
@@ -392,15 +400,23 @@ function initVisualCursor() {
   }
 
   let voiceHUD = null, hudFadeTimer = null;
+  let hudStickyUntil = 0;
   function updateHUD(text, type) {
     if (!voiceHUD) voiceHUD = createVoiceHUD();
+    const now = Date.now();
+    // Keep success/error states visible briefly so rapid "heard" updates
+    // don't immediately overwrite important feedback in the HUD.
+    if (type === 'heard' && now < hudStickyUntil) return;
     const icons = { listening: '\u{1F3A4}', heard: '\u{1F4AC}', matched: '\u2705', command: '\u26A1', error: '\u26A0\uFE0F' };
     voiceHUD.textContent = `${icons[type] || '\u{1F3A4}'} ${text}`;
     voiceHUD.style.background = type === 'command' ? 'rgba(34,139,34,0.85)'
       : type === 'error' ? 'rgba(200,50,50,0.85)'
-      : type === 'matched' ? 'rgba(54,125,138,0.85)'
-      : 'rgba(0,0,0,0.75)';
+        : type === 'matched' ? 'rgba(54,125,138,0.85)'
+          : 'rgba(0,0,0,0.75)';
     voiceHUD.style.opacity = '0.95';
+    if (type === 'matched' || type === 'command' || type === 'error') {
+      hudStickyUntil = now + 1100;
+    }
     clearTimeout(hudFadeTimer);
     hudFadeTimer = setTimeout(() => {
       if (voiceHUD) { voiceHUD.style.opacity = '0.4'; voiceHUD.textContent = '\u{1F3A4} Listening...'; voiceHUD.style.background = 'rgba(0,0,0,0.75)'; }
@@ -527,28 +543,15 @@ function initVisualCursor() {
       bestEl.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
       bestEl.focus({ preventScroll: true });
 
-      const rect = bestEl.getBoundingClientRect();
-      // KEY CHANGE: Sync Voice Match with the Steady Mouse virtual cursor coordinates
-      virtualMouse.x = rect.left + rect.width / 2;
-      virtualMouse.y = rect.top + rect.height / 2;
+      // Do not teleport the virtual cursor here.
+      // The render loop already eases toward voiceHoveredElement, which creates
+      // smooth motion that is easier to follow visually.
 
       updateHUD(`Matched: "${bestLabel}"`, 'matched');
       if (CONFIG.DEBUG_MODE) console.log(`[Voice] Matched "${cleanSpoken}" -> "${bestLabel}" (${bestScore.toFixed(2)})`);
       return true;
     }
     return false;
-  }
-
-  // --- Debounced hover: waits for user to finish speaking before matching ---
-  let hoverDebounceTimer = null;
-  function debouncedHoverMatch(spoken) {
-    // Show what we're hearing in real-time
-    updateHUD(`"${spoken}"`, 'heard');
-    // Wait 800ms of silence before actually matching
-    clearTimeout(hoverDebounceTimer);
-    hoverDebounceTimer = setTimeout(() => {
-      hoverBestMatch(spoken);
-    }, 800);
   }
 
   // --- Voice Recognition Engine ---
@@ -569,11 +572,34 @@ function initVisualCursor() {
     // Command map
     const COMMANDS = { 'select': 'select', 'click': 'select', 'open': 'open', 'close': 'close', 'shut': 'close' };
 
+    function levenshteinDistance(a, b) {
+      const m = a.length;
+      const n = b.length;
+      const dp = Array.from({ length: m + 1 }, () => Array(n + 1).fill(0));
+      for (let i = 0; i <= m; i++) dp[i][0] = i;
+      for (let j = 0; j <= n; j++) dp[0][j] = j;
+      for (let i = 1; i <= m; i++) {
+        for (let j = 1; j <= n; j++) {
+          const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+          dp[i][j] = Math.min(
+            dp[i - 1][j] + 1,
+            dp[i][j - 1] + 1,
+            dp[i - 1][j - 1] + cost
+          );
+        }
+      }
+      return dp[m][n];
+    }
+
     function extractCommand(transcript) {
       const words = normalizeText(transcript).split(/\s+/);
       // Only check the LAST word — prevents re-firing from accumulated transcripts
       const lastWord = words[words.length - 1];
       if (COMMANDS[lastWord]) return COMMANDS[lastWord];
+      // Tolerate small speech-recognition errors for "select" (e.g., "selcte").
+      if (lastWord && lastWord.length >= 4 && levenshteinDistance(lastWord, 'select') <= 2) {
+        return 'select';
+      }
       return null;
     }
 
@@ -586,99 +612,118 @@ function initVisualCursor() {
     function isOnCooldown(cmd) { return (Date.now() - (cooldowns[cmd] || 0)) < 1500; }
     function setCooldown(cmd) { cooldowns[cmd] = Date.now(); }
 
-    // Track the transcript that last triggered a command, so accumulated
-    // transcripts (e.g. "open" → "open videos") don't re-fire the old command
-    let lastExecutedTranscript = '';
-
     function executeCommand(cmd) {
       if (isOnCooldown(cmd)) return;
-      setCooldown(cmd);
 
       if (cmd === 'select') {
-        if (voiceHoveredElement) {
-          updateHUD(`Selected: "${getElementLabel(voiceHoveredElement)}"`, 'command');
-          if (CONFIG.DEBUG_MODE) console.log('[Voice] SELECT:', voiceHoveredElement);
+        const target = voiceHoveredElement || lastVoiceMatchedElement;
+        if (target) {
+          setCooldown(cmd);
+          updateHUD(`Selected: "${getElementLabel(target)}"`, 'command');
+          if (CONFIG.DEBUG_MODE) console.log('[Voice] SELECT:', target);
           isProgrammaticClick = true;
-          voiceHoveredElement.click();
+          target.click();
           isProgrammaticClick = false;
+          // One-time use: after select, clear saved match immediately.
+          voiceHoveredElement = null;
+          voiceLockAnchor = null;
+          lastVoiceMatchedElement = null;
         } else {
           updateHUD('Say a button name first', 'error');
         }
       } else if (cmd === 'open') {
+        setCooldown(cmd);
         updateHUD('Opening new tab...', 'command');
         chrome.runtime.sendMessage({ action: 'openNewTab' });
       } else if (cmd === 'close') {
+        setCooldown(cmd);
         updateHUD('Closing tab...', 'command');
         chrome.runtime.sendMessage({ action: 'closeCurrentTab' });
       }
     }
 
-    // --- KEY FIX: Debounce-based command execution ---
-    // Don't rely on isFinal (broken on Mac). Instead, when we see a command
-    // word stay stable for 350ms, execute it. This works on ALL platforms.
-    let commandDebounceTimer = null;
-    let lastSeenCommand = null;
-    let lastTranscript = '';
+    const NON_COMMAND_MATCH_DELAY_MS = 600;
+    let nonCommandMatchTimer = null;
+    let pendingPhraseWords = '';
+    let previousRecognizerTranscript = '';
 
-    function processTranscript(transcript) {
-      if (!transcript) return;
+    function scheduleLatestPhraseMatch() {
+      clearTimeout(nonCommandMatchTimer);
+      nonCommandMatchTimer = setTimeout(() => {
+        // Clear current live lock first so stale matches are removed.
+        voiceHoveredElement = null;
+        voiceLockAnchor = null;
+        if (!pendingPhraseWords) return;
 
-      const command = extractCommand(transcript);
-      const buttonPart = extractButtonWords(transcript);
+        const matched = hoverBestMatch(pendingPhraseWords);
+        if (matched) {
+          // Keep only the most recent matched target for future "select".
+          lastVoiceMatchedElement = voiceHoveredElement;
+        } else {
+          updateHUD('Listening...', 'listening');
+        }
+        // Clear phrase memory after each completed sentence match.
+        pendingPhraseWords = '';
+      }, NON_COMMAND_MATCH_DELAY_MS);
+    }
+
+    function processTranscriptChunk(transcriptChunk) {
+      if (!transcriptChunk) return;
+
+      const command = extractCommand(transcriptChunk);
+      const buttonPart = extractButtonWords(transcriptChunk);
 
       if (command) {
-        // If there's a command, match the button part immediately then execute
-        clearTimeout(hoverDebounceTimer);
-        if (buttonPart) hoverBestMatch(buttonPart);
-
-        // Skip if this transcript is just an accumulation of one that already fired
-        if (lastExecutedTranscript && transcript.startsWith(lastExecutedTranscript)) return;
-        if (command === lastSeenCommand && transcript === lastTranscript) return;
-
-        lastSeenCommand = command;
-        lastTranscript = transcript;
-
-        clearTimeout(commandDebounceTimer);
-        commandDebounceTimer = setTimeout(() => {
-          executeCommand(command);
-          lastExecutedTranscript = transcript;
-          lastSeenCommand = null;
-          lastTranscript = '';
-        }, 350);
+        clearTimeout(nonCommandMatchTimer);
+        pendingPhraseWords = '';
+        updateHUD(`"${transcriptChunk}"`, 'heard');
+        // Use only command-local button words, then execute immediately.
+        if (buttonPart) {
+          const matched = hoverBestMatch(buttonPart);
+          if (matched) {
+            lastVoiceMatchedElement = voiceHoveredElement;
+          }
+        }
+        executeCommand(command);
       } else {
-        // No command — debounce the hover match (wait for user to finish speaking)
-        clearTimeout(commandDebounceTimer);
-        lastSeenCommand = null;
-        if (buttonPart) debouncedHoverMatch(buttonPart);
+        // No command: keep collecting words until a pause, then match once.
+        if (!buttonPart) return;
+        pendingPhraseWords = pendingPhraseWords
+          ? `${pendingPhraseWords} ${buttonPart}`
+          : buttonPart;
+        pendingPhraseWords = normalizeText(pendingPhraseWords);
+        updateHUD(`"${pendingPhraseWords}"`, 'heard');
+        scheduleLatestPhraseMatch();
       }
     }
 
     recognition.onresult = (event) => {
       const latest = event.results[event.results.length - 1];
-      const transcript = latest[0].transcript.trim().toLowerCase();
+      const transcript = normalizeText(latest[0].transcript || '');
+      if (!transcript) return;
+
+      // SpeechRecognition often returns cumulative text in each result. Convert it
+      // to a "new words only" chunk so old words never re-appear in matching/HUD.
+      let transcriptChunk = '';
+      if (!previousRecognizerTranscript) {
+        transcriptChunk = transcript;
+      } else if (transcript.startsWith(previousRecognizerTranscript)) {
+        transcriptChunk = transcript.slice(previousRecognizerTranscript.length).trim();
+      } else if (!previousRecognizerTranscript.startsWith(transcript)) {
+        // Recognizer may reset or branch; treat this as a fresh chunk.
+        transcriptChunk = transcript;
+      }
 
       if (latest.isFinal) {
-        clearTimeout(commandDebounceTimer);
-        const command = extractCommand(transcript);
-        const buttonPart = extractButtonWords(transcript);
-        if (buttonPart) hoverBestMatch(buttonPart);
-
-        // Only execute if not already handled from a prior accumulated transcript
-        if (command && !(lastExecutedTranscript && transcript.startsWith(lastExecutedTranscript))) {
-          executeCommand(command);
-          lastExecutedTranscript = transcript;
-        } else if (!command) {
-          hoverBestMatch(transcript);
-        }
-
-        updateHUD(`"${transcript}"`, 'heard');
-        if (CONFIG.DEBUG_MODE) console.log(`[Voice] Final: "${transcript}"`);
-
-        // Reset for next speech segment
-        lastExecutedTranscript = '';
+        previousRecognizerTranscript = '';
       } else {
-        processTranscript(transcript);
-        if (CONFIG.DEBUG_MODE) console.log(`[Voice] Interim: "${transcript}"`);
+        previousRecognizerTranscript = transcript;
+      }
+
+      if (!transcriptChunk) return;
+      processTranscriptChunk(transcriptChunk);
+      if (CONFIG.DEBUG_MODE) {
+        console.log(`[Voice] ${latest.isFinal ? 'Final' : 'Interim'} chunk: "${transcriptChunk}"`);
       }
     };
 
@@ -701,9 +746,11 @@ function initVisualCursor() {
 
     recognition.onend = () => {
       if (!voiceControlActive) return; // Don't restart if voice was turned off
+      if (document.visibilityState !== 'visible') return; // Don't restart if tab is hidden
       const delay = Math.min(100 * Math.pow(2, restartAttempts), 5000);
       setTimeout(() => {
         if (!voiceControlActive) return;
+        if (document.visibilityState !== 'visible') return;
         try { recognition.start(); restartAttempts = Math.max(0, restartAttempts - 1); }
         catch (err) { restartAttempts++; }
       }, delay);
@@ -726,28 +773,59 @@ function initVisualCursor() {
   }
 
   // --- Feature enable/disable via storage ---
-  let voiceControlActive = false;
+  let voiceControlActive = false;   // User's preference (toggle in popup)
   let activeRecognition = null;
+  let voiceRunning = false;         // Is recognition actually running right now?
+
+  /** Start recognition only if user wants voice AND this tab is visible. */
+  function startRecognitionIfVisible() {
+    if (!voiceControlActive) return;
+    if (document.visibilityState !== 'visible') return;
+    if (voiceRunning) return; // Already running
+    activeRecognition = initVoiceHover();
+    voiceRunning = true;
+    console.log('[SteadySync] Voice started (tab visible).');
+  }
+
+  /** Stop recognition (tab hidden or user disabled). */
+  function stopRecognition() {
+    voiceRunning = false;
+    if (activeRecognition) {
+      try { activeRecognition.abort(); } catch (e) { }
+      activeRecognition = null;
+    }
+  }
 
   function enableVoice() {
     if (voiceControlActive) return;
     voiceControlActive = true;
-    activeRecognition = initVoiceHover();
+    startRecognitionIfVisible();
     console.log('[SteadySync] Voice control enabled.');
   }
 
   function disableVoice() {
     voiceControlActive = false;
     voiceLockAnchor = null;
-    if (activeRecognition) {
-      try { activeRecognition.abort(); } catch (e) {}
-      activeRecognition = null;
-    }
+    voiceHoveredElement = null;
+    lastVoiceMatchedElement = null;
+    stopRecognition();
     // Hide HUD
     const hud = document.getElementById('steadysync-voice-hud');
     if (hud) hud.style.display = 'none';
     console.log('[SteadySync] Voice control disabled.');
   }
+
+  // --- Tab visibility: only hold mic on the active tab ---
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') {
+      startRecognitionIfVisible();
+    } else {
+      if (voiceRunning) {
+        stopRecognition();
+        console.log('[SteadySync] Voice paused (tab hidden).');
+      }
+    }
+  });
 
   function enableHitbox() {
     CONFIG.DEBUG_MODE = true;
@@ -762,12 +840,19 @@ function initVisualCursor() {
   }
 
   // Check storage on load and init features accordingly
-  chrome.storage.local.get(['hitboxEnabled', 'voiceEnabled'], (result) => {
+  chrome.storage.local.get(['hitboxEnabled', 'voiceEnabled', 'snapEnabled', 'pathToggleEnabled'], (result) => {
     if (result.hitboxEnabled) {
       enableHitbox();
     } else {
       disableHitbox();
     }
+
+    if (result.snapEnabled) {
+      setSnapEnabled(true);
+    }
+
+    steadyMouseEnabled = Boolean(result.pathToggleEnabled);
+    console.log('[SteadySync] Steady Mouse:', steadyMouseEnabled ? 'ON' : 'OFF');
 
     if (result.voiceEnabled) {
       enableVoice();
@@ -784,6 +869,15 @@ function initVisualCursor() {
       } else {
         disableHitbox();
       }
+    }
+
+    if (changes.snapEnabled) {
+      setSnapEnabled(changes.snapEnabled.newValue);
+    }
+
+    if (changes.pathToggleEnabled) {
+      steadyMouseEnabled = Boolean(changes.pathToggleEnabled.newValue);
+      console.log('[SteadySync] Steady Mouse:', steadyMouseEnabled ? 'ON' : 'OFF');
     }
 
     if (changes.voiceEnabled) {

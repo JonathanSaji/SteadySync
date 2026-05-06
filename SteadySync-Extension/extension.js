@@ -90,12 +90,22 @@ document.addEventListener("DOMContentLoaded", () => {
     });
 
     snapToggle.addEventListener("change", () => {
+        // If snap is turned OFF while voice is ON, also turn off voice
+        if (!snapToggle.checked && voiceToggle.checked) {
+            voiceToggle.checked = false;
+            updateStatusLabel(voiceStatus, false);
+        }
         updateStatusLabel(snapStatus, snapToggle.checked);
         saveFeatureStates();
         syncSystemButton();
     });
 
     voiceToggle.addEventListener("change", () => {
+        // Voice ON → automatically enable Snap too
+        if (voiceToggle.checked && !snapToggle.checked) {
+            snapToggle.checked = true;
+            updateStatusLabel(snapStatus, true);
+        }
         updateStatusLabel(voiceStatus, voiceToggle.checked);
         saveFeatureStates();
         syncSystemButton();
