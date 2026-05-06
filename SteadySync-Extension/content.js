@@ -142,10 +142,6 @@
    * Finds the best target element near the given coordinates.
    */
   function findNearestTarget(mouseX, mouseY, stabilityScore) {
-    if (!snapEnabled) {
-      return null;
-    }
-
     const elements = getClickableElements();
     let nearestElement = null;
     let minDistance = Infinity;
