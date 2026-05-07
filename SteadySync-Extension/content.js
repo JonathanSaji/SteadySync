@@ -233,10 +233,10 @@
 
     // Replace the style logic in initVisualCursor()
     const style = document.createElement('style');
-    // Hide the native cursor so only the virtual cursor is visible
+    // This creates a tiny 4px black dot as the "real" cursor
     style.textContent = `
       * { 
-        cursor: none !important;
+        cursor: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="8" height="8" viewBox="0 0 8 8"><circle cx="4" cy="4" r="2" fill="black" stroke="white" stroke-width="1"/></svg>') 4 4, auto !important; 
       }
     `;
     document.head.appendChild(style);
