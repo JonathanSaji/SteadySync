@@ -320,20 +320,25 @@
     if (isProgrammaticClick) return; // Prevent infinite loops from our own synthetic clicks
     if (!snapEnabled) return;
 
-    // If a target is found AND the user didn't natively click inside the target (or its children)
-    if (target && !target.contains(event.target)) {
-      // Prevent the original "missed" click from doing anything
+    // Find target at VIRTUAL cursor position (where the user sees the cursor)
+    const stabilityScore = calculateStabilityScore();
+    const target = findNearestTarget(virtualMouse.x, virtualMouse.y, stabilityScore);
+
+    if (target) {
+      // Prevent the original click from doing anything
       event.preventDefault();
       event.stopPropagation();
       event.stopImmediatePropagation();
 
       if (CONFIG.DEBUG_MODE) {
-        console.log(`[Adaptive Click] Redirected click.`);
+        console.log(`[Adaptive Click] Click redirected to virtual cursor position.`);
+        console.log(`  - Real mouse: (${event.clientX}, ${event.clientY})`);
+        console.log(`  - Virtual cursor: (${virtualMouse.x.toFixed(0)}, ${virtualMouse.y.toFixed(0)})`);
         console.log(`  - Stability Score: ${stabilityScore.toFixed(2)}`);
-        console.log(`  - Snapped to:`, target);
+        console.log(`  - Target:`, target);
       }
 
-      // Trigger click on the intended target
+      // Trigger click on the target at virtual cursor position
       isProgrammaticClick = true;
       target.click();
       isProgrammaticClick = false;
