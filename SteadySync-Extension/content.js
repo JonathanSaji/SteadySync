@@ -15,11 +15,11 @@
   // --- Configuration ---
   const CONFIG = {
     // Tuning parameters
-    TRACKING_DURATION_MS: 500,       // Duration of cursor history to keep (milliseconds)
+    TRACKING_DURATION_MS: 1500,      // Duration of cursor history to keep (milliseconds)
     MIN_MOVEMENT_PX: 20,             // Minimum movement needed to evaluate tremor
     BASE_EXPANSION_PX: 10,           // Default invisible padding around clickable elements (px)
     MAX_TREMOR_EXPANSION_PX: 40,     // Extra padding added based on severity of tremor (px)
-    MAX_SNAP_DISTANCE_PX: 100,       // Absolute max distance a click can snap (px)
+
 
     SMOOTHING_FACTOR: 0.1,          // Steady Mouse smoothing (Lower = smoother but more lag)
 
@@ -88,7 +88,10 @@
       '[role="link"]',
       '[role="checkbox"]',
       '[role="radio"]',
-      '[tabindex]:not([tabindex="-1"])'
+      '[tabindex]:not([tabindex="-1"])',
+      '.ytp-button',        // YouTube player buttons
+      '.vjs-control',       // VideoJS controls
+      '[onclick]'           // Elements with inline clicks
     ];
     return Array.from(document.querySelectorAll(selectors.join(', ')));
   }
@@ -126,11 +129,6 @@
     const netDisplacement = getDistance(first.x, first.y, last.x, last.y);
 
     if (pathDistance < CONFIG.MIN_MOVEMENT_PX) return 0;
-
-
-    if (pathDistance < CONFIG.MIN_MOVEMENT_PX) {
-      return 0; // Not enough movement to confidently detect tremor
-    }
 
     // Score formula: 1 - (net displacement / path distance)
     // Straight line movement ≈ 0. Shaky/circular movement ≈ 1.
@@ -178,7 +176,7 @@
         const centerY = rect.top + rect.height / 2;
         const dist = getDistance(mouseX, mouseY, centerX, centerY);
 
-        if (dist < minDistance && dist <= CONFIG.MAX_SNAP_DISTANCE_PX) {
+        if (dist < minDistance) {
           minDistance = dist;
           nearestElement = el;
         }
@@ -272,8 +270,23 @@
           }
         } else {
           // Snap mode release mechanism (non-voice target)
-          const distanceToReal = getDistance(realMouse.x, realMouse.y, centerX, centerY);
-          if (distanceToReal < 120) {
+          // We release only if the REAL mouse leaves the expanded hitbox
+          const expansion = CONFIG.BASE_EXPANSION_PX + (stabilityScore * CONFIG.MAX_TREMOR_EXPANSION_PX);
+          const expandedRect = {
+            left: rect.left - expansion,
+            right: rect.right + expansion,
+            top: rect.top - expansion,
+            bottom: rect.bottom + expansion,
+          };
+
+          const isRealInside = (
+            realMouse.x >= expandedRect.left &&
+            realMouse.x <= expandedRect.right &&
+            realMouse.y >= expandedRect.top &&
+            realMouse.y <= expandedRect.bottom
+          );
+
+          if (isRealInside) {
             shouldSnap = true;
           }
         }
@@ -318,11 +331,13 @@
   // Intercept clicks to apply snap logic
   document.addEventListener('click', (event) => {
     if (isProgrammaticClick) return; // Prevent infinite loops from our own synthetic clicks
-    if (!snapEnabled) return;
+    // Intercept clicks if snap is enabled OR if hitboxes are shown (the user expects them to work)
+    if (!snapEnabled && !CONFIG.DEBUG_MODE) return;
 
-    // Find target at VIRTUAL cursor position (where the user sees the cursor)
+    // Find target at both VIRTUAL cursor position (ghost cursor) and REAL mouse position (click event)
     const stabilityScore = calculateStabilityScore();
-    const target = findNearestTarget(virtualMouse.x, virtualMouse.y, stabilityScore);
+    const target = findNearestTarget(virtualMouse.x, virtualMouse.y, stabilityScore) || 
+                   findNearestTarget(event.clientX, event.clientY, stabilityScore);
 
     if (target) {
       // Prevent the original click from doing anything
@@ -331,16 +346,17 @@
       event.stopImmediatePropagation();
 
       if (CONFIG.DEBUG_MODE) {
-        console.log(`[Adaptive Click] Click redirected to virtual cursor position.`);
-        console.log(`  - Real mouse: (${event.clientX}, ${event.clientY})`);
-        console.log(`  - Virtual cursor: (${virtualMouse.x.toFixed(0)}, ${virtualMouse.y.toFixed(0)})`);
-        console.log(`  - Stability Score: ${stabilityScore.toFixed(2)}`);
-        console.log(`  - Target:`, target);
+        console.log(`[Adaptive Click] Redirecting click to target:`, target);
       }
 
-      // Trigger click on the target at virtual cursor position
+      // Trigger a robust click sequence (needed for complex players like YouTube)
       isProgrammaticClick = true;
+      
+      const coords = { bubbles: true, cancelable: true, view: window, clientX: event.clientX, clientY: event.clientY };
+      target.dispatchEvent(new MouseEvent('mousedown', coords));
+      target.dispatchEvent(new MouseEvent('mouseup', coords));
       target.click();
+      
       isProgrammaticClick = false;
     }
   }, { capture: true });
@@ -481,39 +497,44 @@
   const COMMAND_WORDS = new Set(['select', 'click', 'open', 'close', 'shut']);
 
   function matchScore(spoken, label) {
-    if (!label) return 0;
+    if (!label || !spoken) return 0;
     const a = normalizeText(spoken);
     const b = normalizeText(label);
     if (!a || !b) return 0;
     if (a === b) return 1.0;
 
-    // Check if spoken words contain the full label as a substring
-    if (b.includes(a)) return 0.9;
-    if (a.includes(b)) return 0.85;
-
-    // Word-level: check if any spoken word exactly matches a label word
     const spokenWords = a.split(/\s+/).filter(w => !COMMAND_WORDS.has(w));
     const labelWords = b.split(/\s+/);
-
     if (spokenWords.length === 0 || labelWords.length === 0) return 0;
 
-    // Single-word label: if ANY spoken word matches it exactly, strong match
-    if (labelWords.length === 1) {
-      for (const w of spokenWords) {
-        if (w === labelWords[0]) return 0.95;
-        // Check if very close (off by 1-2 chars) for speech recognition errors
-        if (w.length > 3 && labelWords[0].length > 3) {
-          if (w.startsWith(labelWords[0].substring(0, 3)) || labelWords[0].startsWith(w.substring(0, 3))) return 0.5;
+    // Direct substring match (e.g. spoken "projects" inside "my cool projects")
+    const spokenStr = spokenWords.join(' ');
+    if (b.includes(spokenStr)) return 0.9;
+    if (a.includes(b)) return 0.85;
+
+    // Fuzzy multi-word: check how many SPOKEN words are in the label
+    const labelSet = new Set(labelWords);
+    const sharedCount = spokenWords.filter(w => labelSet.has(w)).length;
+    
+    if (sharedCount === 0) {
+      // Check for close typos on single spoken word against any label word
+      if (spokenWords.length === 1) {
+        for (const lw of labelWords) {
+          if (spokenWords[0].length > 3 && lw.length > 3) {
+            if (spokenWords[0].startsWith(lw.substring(0, 3)) || lw.startsWith(spokenWords[0].substring(0, 3))) return 0.5;
+          }
         }
       }
+      return 0;
     }
 
-    // Multi-word: count how many label words appear in spoken words
-    const spokenSet = new Set(spokenWords);
-    const sharedCount = labelWords.filter(w => spokenSet.has(w)).length;
-    if (sharedCount === 0) return 0;
-
-    return (sharedCount / labelWords.length) * 0.85;
+    // Score is based on how much of the SPOKEN phrase matched the label.
+    // Penalize slightly if the label has many extra words so shorter, more exact labels win.
+    const matchRatio = sharedCount / spokenWords.length;
+    const extraWordsPenalty = Math.max(0, labelWords.length - sharedCount) * 0.05;
+    
+    let score = (matchRatio * 0.85) - extraWordsPenalty;
+    return Math.max(0, score);
   }
 
   function hoverBestMatch(spoken) {
@@ -655,67 +676,37 @@
     function scheduleLatestPhraseMatch() {
       clearTimeout(nonCommandMatchTimer);
       nonCommandMatchTimer = setTimeout(() => {
-        // Clear current live lock first so stale matches are removed.
-        voiceHoveredElement = null;
-        voiceLockAnchor = null;
         if (!pendingPhraseWords) return;
 
         const matched = hoverBestMatch(pendingPhraseWords);
         if (matched) {
-          // Keep only the most recent matched target for future "select".
           lastVoiceMatchedElement = voiceHoveredElement;
         } else {
+          // If the spoken phrase doesn't match anything, CLEAR the lock!
+          // This prevents the system from getting "stuck" on a previous match.
+          voiceHoveredElement = null;
+          voiceLockAnchor = null;
           updateHUD('Listening...', 'listening');
         }
-        // Clear phrase memory after each completed sentence match.
+        
+        // Clear the phrase memory so the next spoken word starts completely fresh
         pendingPhraseWords = '';
       }, NON_COMMAND_MATCH_DELAY_MS);
     }
 
-    function processTranscriptChunk(transcriptChunk) {
-      if (!transcriptChunk) return;
-
-      const command = extractCommand(transcriptChunk);
-      const buttonPart = extractButtonWords(transcriptChunk);
-
-      if (command) {
-        clearTimeout(nonCommandMatchTimer);
-        pendingPhraseWords = '';
-        updateHUD(`"${transcriptChunk}"`, 'heard');
-        // Use only command-local button words, then execute immediately.
-        if (buttonPart) {
-          const matched = hoverBestMatch(buttonPart);
-          if (matched) {
-            lastVoiceMatchedElement = voiceHoveredElement;
-          }
-        }
-        executeCommand(command);
-      } else {
-        // No command: keep collecting words until a pause, then match once.
-        if (!buttonPart) return;
-        pendingPhraseWords = pendingPhraseWords
-          ? `${pendingPhraseWords} ${buttonPart}`
-          : buttonPart;
-        pendingPhraseWords = normalizeText(pendingPhraseWords);
-        updateHUD(`"${pendingPhraseWords}"`, 'heard');
-        scheduleLatestPhraseMatch();
-      }
-    }
-
     recognition.onresult = (event) => {
+      // Always operate on the most recent current sentence (interim or final)
       const latest = event.results[event.results.length - 1];
       const transcript = normalizeText(latest[0].transcript || '');
       if (!transcript) return;
 
-      // SpeechRecognition often returns cumulative text in each result. Convert it
-      // to a "new words only" chunk so old words never re-appear in matching/HUD.
+      // Extract the delta (newly spoken words) to build phrases naturally
       let transcriptChunk = '';
       if (!previousRecognizerTranscript) {
         transcriptChunk = transcript;
       } else if (transcript.startsWith(previousRecognizerTranscript)) {
         transcriptChunk = transcript.slice(previousRecognizerTranscript.length).trim();
       } else if (!previousRecognizerTranscript.startsWith(transcript)) {
-        // Recognizer may reset or branch; treat this as a fresh chunk.
         transcriptChunk = transcript;
       }
 
@@ -726,9 +717,37 @@
       }
 
       if (!transcriptChunk) return;
-      processTranscriptChunk(transcriptChunk);
+
       if (CONFIG.DEBUG_MODE) {
-        console.log(`[Voice] ${latest.isFinal ? 'Final' : 'Interim'} chunk: "${transcriptChunk}"`);
+        console.log(`[Voice] ${latest.isFinal ? 'Final' : 'Interim'}: "${transcriptChunk}"`);
+      }
+
+      const command = extractCommand(transcriptChunk);
+      const buttonPart = extractButtonWords(transcriptChunk);
+
+      if (command) {
+        // If a command is spoken, execute immediately and cancel any pending matches
+        clearTimeout(nonCommandMatchTimer);
+        pendingPhraseWords = '';
+        updateHUD(`"${transcriptChunk}"`, 'heard');
+        
+        // Evaluate any button words spoken in the same breath as the command
+        if (buttonPart) {
+          const matched = hoverBestMatch(buttonPart);
+          if (matched) {
+            lastVoiceMatchedElement = voiceHoveredElement;
+          }
+        }
+        executeCommand(command);
+      } else if (buttonPart) {
+        // Accumulate words into a pending phrase until the user pauses
+        pendingPhraseWords = pendingPhraseWords
+          ? `${pendingPhraseWords} ${buttonPart}`
+          : buttonPart;
+        pendingPhraseWords = normalizeText(pendingPhraseWords);
+        
+        updateHUD(`"${pendingPhraseWords}"`, 'heard');
+        scheduleLatestPhraseMatch();
       }
     };
 
