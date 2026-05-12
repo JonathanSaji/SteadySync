@@ -667,7 +667,7 @@
         chrome.runtime.sendMessage({ action: 'closeCurrentTab' });
       } else if (cmd === 'steady sync' || cmd === 'steady') {
         setCooldown(cmd);
-        updateHUD('Openingg Steady Sync...', 'command');
+        updateHUD('Opening Steady Sync...', 'command');
         chrome.runtime.sendMessage({ action: 'openSteadySync' });
       } else if (cmd === 'hide' || cmd === 'hide steady sync') {
         setCooldown(cmd);
