@@ -111,6 +111,13 @@ document.addEventListener("DOMContentLoaded", () => {
         syncSystemButton();
     });
 
+    // Closing popup listener
+    chrome.runtime.onMessage.addListener((message) => {
+    if (message.action === 'forceClosePopup') {
+        window.close(); // This physically shuts the extension popup
+    }
+});
+
     // Theme Management
     const applyTheme = (theme) => {
         if (theme === 'dark') {

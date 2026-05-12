@@ -596,7 +596,7 @@
     recognition.maxAlternatives = 3;
 
     // Command map
-    const COMMANDS = { 'select': 'select', 'click': 'select', 'open': 'open', 'close': 'close', 'shut': 'close' };
+    const COMMANDS = { 'select': 'select', 'click': 'select', 'open': 'open', 'close': 'close', 'shut': 'close', 'steady sync': 'steady sync', 'steady': 'steady', 'hide': 'hide', 'hide steady sync': 'hide steady sync' };
 
     function levenshteinDistance(a, b) {
       const m = a.length;
@@ -661,10 +661,18 @@
         setCooldown(cmd);
         updateHUD('Opening new tab...', 'command');
         chrome.runtime.sendMessage({ action: 'openNewTab' });
-      } else if (cmd === 'close') {
+      }  else if (cmd === 'close') {
         setCooldown(cmd);
         updateHUD('Closing tab...', 'command');
         chrome.runtime.sendMessage({ action: 'closeCurrentTab' });
+      } else if (cmd === 'steady sync' || cmd === 'steady') {
+        setCooldown(cmd);
+        updateHUD('Openingg Steady Sync...', 'command');
+        chrome.runtime.sendMessage({ action: 'openSteadySync' });
+      } else if (cmd === 'hide' || cmd === 'hide steady sync') {
+        setCooldown(cmd);
+        updateHUD('Hiding Steady Sync...', 'command');
+        chrome.runtime.sendMessage({ action: 'hideSteadySync' });
       }
     }
 

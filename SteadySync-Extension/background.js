@@ -37,4 +37,22 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     }
     return true; // Keep the message channel open for async sendResponse
   }
+  if (message.action === 'openSteadySync') {
+    if (chrome.action && chrome.action.openPopup) {
+      chrome.action.openPopup();
+      sendResponse({ success: true });
+    } else {
+      // Fallback if the browser version doesn't support programmatic opening
+      console.warn('[SteadySync BG] openPopup not supported in this Chrome version.');
+      sendResponse({ success: false, error: 'Not supported' });
+    }
+    return true;
+  }
+
+  if (message.action === 'hideSteadySync') {
+    chrome.runtime.sendMessage({ action: 'forceClosePopup' });
+    sendResponse({ success: true });
+    return true;
+  }
+
 });
