@@ -919,5 +919,98 @@
         disableVoice();
       }
     }
+
+    // Sync global setting changes into the current user's profile
+    chrome.storage.local.get(['currentUser', 'pathToggleEnabled', 'hitboxEnabled', 'snapEnabled', 'voiceEnabled'], (res) => {
+      const newState = {
+          pathToggleEnabled: changes.pathToggleEnabled !== undefined ? changes.pathToggleEnabled.newValue : res.pathToggleEnabled,
+          hitboxEnabled: changes.hitboxEnabled !== undefined ? changes.hitboxEnabled.newValue : res.hitboxEnabled,
+          snapEnabled: changes.snapEnabled !== undefined ? changes.snapEnabled.newValue : res.snapEnabled,
+          voiceEnabled: changes.voiceEnabled !== undefined ? changes.voiceEnabled.newValue : res.voiceEnabled
+      };
+
+      // Broadcast the new state immediately to keep website in sync
+      window.postMessage({
+        type: 'STEADYSYNC_EXTENSION_STATE',
+        currentUser: res.currentUser,
+        state: newState
+      }, '*');
+
+      if (res.currentUser) {
+        let profileUpdateNeeded = false;
+        const profileKey = `profile_${res.currentUser}`;
+        chrome.storage.local.get([profileKey], (profRes) => {
+           let profile = profRes[profileKey] || {};
+           ['hitboxEnabled', 'snapEnabled', 'pathToggleEnabled', 'voiceEnabled'].forEach(key => {
+               if (changes[key] && changes[key].newValue !== profile[key]) {
+                   profile[key] = changes[key].newValue;
+                   profileUpdateNeeded = true;
+               }
+           });
+           if (profileUpdateNeeded) {
+               let update = {};
+               update[profileKey] = profile;
+               chrome.storage.local.set(update);
+           }
+        });
+      }
+    });
   });
+
+  // --- Website Integration ---
+  // Listen for messages from the website to control extension settings
+  window.addEventListener('message', (event) => {
+    // We only accept messages from ourselves
+    if (event.source !== window) return;
+
+    if (event.data.type && (event.data.type === 'STEADYSYNC_WEBSITE_PING')) {
+      chrome.storage.local.get(['currentUser', 'pathToggleEnabled', 'hitboxEnabled', 'snapEnabled', 'voiceEnabled'], (result) => {
+        window.postMessage({
+          type: 'STEADYSYNC_EXTENSION_STATE',
+          currentUser: result.currentUser,
+          state: result
+        }, '*');
+      });
+    } else if (event.data.type && (event.data.type === 'STEADYSYNC_LOGIN')) {
+      const userId = event.data.userId;
+      const profileKey = `profile_${userId}`;
+      chrome.storage.local.get([profileKey], (res) => {
+        const profile = res[profileKey] || {
+           pathToggleEnabled: false, hitboxEnabled: false, snapEnabled: false, voiceEnabled: false
+        };
+        chrome.storage.local.set({
+           currentUser: userId,
+           pathToggleEnabled: profile.pathToggleEnabled || false,
+           hitboxEnabled: profile.hitboxEnabled || false,
+           snapEnabled: profile.snapEnabled || false,
+           voiceEnabled: profile.voiceEnabled || false
+        }, () => {
+            // Force state broadcast after login
+            chrome.storage.local.get(['currentUser', 'pathToggleEnabled', 'hitboxEnabled', 'snapEnabled', 'voiceEnabled'], (result) => {
+                window.postMessage({
+                  type: 'STEADYSYNC_EXTENSION_STATE',
+                  currentUser: result.currentUser,
+                  state: result
+                }, '*');
+            });
+        });
+      });
+    } else if (event.data.type && (event.data.type === 'STEADYSYNC_LOGOUT')) {
+      chrome.storage.local.set({
+         currentUser: null,
+         pathToggleEnabled: false,
+         hitboxEnabled: false,
+         snapEnabled: false,
+         voiceEnabled: false
+      });
+    } else if (event.data.type && (event.data.type === 'STEADYSYNC_UPDATE_SETTING')) {
+      const { setting, value } = event.data;
+      if (['pathToggleEnabled', 'hitboxEnabled', 'snapEnabled', 'voiceEnabled'].includes(setting)) {
+        const update = {};
+        update[setting] = value;
+        chrome.storage.local.set(update);
+      }
+    }
+  }, false);
+
 })();

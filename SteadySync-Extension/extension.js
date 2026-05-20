@@ -1,8 +1,12 @@
 document.addEventListener("DOMContentLoaded", () => {
+    const loginView = document.getElementById("login-view");
     const popupView = document.getElementById("popup-view");
     const settingsView = document.getElementById("settings-view");
     const goToSettingsButton = document.getElementById("goToSettings");
     const backToPopupButton = document.getElementById("backToPopup");
+    const openWebsiteLoginButton = document.getElementById("openWebsiteLogin");
+    const openWebsiteBtn = document.getElementById("openWebsiteBtn");
+
     const pathToggle = document.getElementById("path-toggle");
     const hitboxToggle = document.getElementById("hitbox-toggle");
     const snapToggle = document.getElementById("snap-toggle");
@@ -17,10 +21,25 @@ document.addEventListener("DOMContentLoaded", () => {
     // Theme toggle elements
     const themeToggleBtn = document.getElementById("themeToggle");
 
+    let currentUser = null;
+
     const showView = (view) => {
+        loginView.style.display = view === "login" ? "flex" : "none";
         popupView.style.display = view === "popup" ? "flex" : "none";
         settingsView.style.display = view === "settings" ? "flex" : "none";
     };
+
+    if (openWebsiteLoginButton) {
+        openWebsiteLoginButton.addEventListener("click", () => {
+            chrome.tabs.create({ url: "http://localhost:8080" });
+        });
+    }
+
+    if (openWebsiteBtn) {
+        openWebsiteBtn.addEventListener("click", () => {
+            chrome.tabs.create({ url: "http://localhost:8080" });
+        });
+    }
 
     goToSettingsButton.addEventListener("click", () => showView("settings"));
     backToPopupButton.addEventListener("click", () => showView("popup"));
@@ -54,16 +73,31 @@ document.addEventListener("DOMContentLoaded", () => {
 
     // --- Helper: save all feature states to storage ---
     function saveFeatureStates() {
-        chrome.storage.local.set({
+        const updates = {
             pathToggleEnabled: pathToggle.checked,
             hitboxEnabled: hitboxToggle.checked,
             snapEnabled: snapToggle.checked,
             voiceEnabled: voiceToggle.checked
-        });
+        };
+        chrome.storage.local.set(updates);
     }
 
     // --- Load saved states ---
-    chrome.storage.local.get(["pathToggleEnabled", "hitboxEnabled", "snapEnabled", "voiceEnabled"], (result) => {
+    chrome.storage.local.get(["currentUser", "pathToggleEnabled", "hitboxEnabled", "snapEnabled", "voiceEnabled", "theme"], (result) => {
+        currentUser = result.currentUser;
+        if (!currentUser) {
+            showView("login");
+            // Force dark mode for login wall
+            document.documentElement.setAttribute('data-theme', 'dark');
+            if (themeToggleBtn) themeToggleBtn.style.display = 'none';
+            return;
+        }
+        
+        showView("popup");
+        if (themeToggleBtn) themeToggleBtn.style.display = 'flex';
+        const savedTheme = result.theme || 'dark';
+        applyTheme(savedTheme);
+
         pathToggle.checked = Boolean(result.pathToggleEnabled);
         hitboxToggle.checked = Boolean(result.hitboxEnabled);
         snapToggle.checked = Boolean(result.snapEnabled);
@@ -120,22 +154,18 @@ document.addEventListener("DOMContentLoaded", () => {
 
     // Theme Management
     const applyTheme = (theme) => {
+        if (!currentUser) return; // Forced dark mode active
         if (theme === 'dark') {
             document.documentElement.setAttribute('data-theme', 'dark');
-            document.getElementById('themeText').textContent = 'Dark Mode';
+            if(document.getElementById('themeText')) document.getElementById('themeText').textContent = 'Light Mode';
         } else {
             document.documentElement.removeAttribute('data-theme');
-            document.getElementById('themeText').textContent = 'Light Mode';
+            if(document.getElementById('themeText')) document.getElementById('themeText').textContent = 'Dark Mode';
         }
     };
 
-    // Load saved theme
-    chrome.storage.local.get(["theme"], (result) => {
-        const savedTheme = result.theme || 'light';
-        applyTheme(savedTheme);
-    });
-
     themeToggleBtn.addEventListener("click", () => {
+        if (!currentUser) return;
         const currentTheme = document.documentElement.getAttribute('data-theme');
         const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
         applyTheme(newTheme);
