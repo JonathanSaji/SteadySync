@@ -960,8 +960,11 @@
   // --- Website Integration ---
   // Listen for messages from the website to control extension settings
   window.addEventListener('message', (event) => {
-    // We only accept messages from ourselves
+    // We only accept messages from ourselves and only on the correct localhost
     if (event.source !== window) return;
+    
+    const allowedOrigins = ['http://localhost:5500', 'http://127.0.0.1:5500'];
+    if (!allowedOrigins.includes(event.origin)) return;
 
     if (event.data.type && (event.data.type === 'STEADYSYNC_WEBSITE_PING')) {
       chrome.storage.local.get(['currentUser', 'pathToggleEnabled', 'hitboxEnabled', 'snapEnabled', 'voiceEnabled'], (result) => {

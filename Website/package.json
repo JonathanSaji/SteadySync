@@ -1,0 +1,8 @@
+{
+  "name": "steadysync-website",
+  "version": "1.0.0",
+  "description": "Website for SteadySync",
+  "scripts": {
+    "start": "npx http-server -p 5050 -c-1"
+  }
+}

@@ -31,13 +31,13 @@ document.addEventListener("DOMContentLoaded", () => {
 
     if (openWebsiteLoginButton) {
         openWebsiteLoginButton.addEventListener("click", () => {
-            chrome.tabs.create({ url: "http://localhost:8080" });
+            chrome.tabs.create({ url: "http://127.0.0.1:5500/Website/index.html" });
         });
     }
 
     if (openWebsiteBtn) {
         openWebsiteBtn.addEventListener("click", () => {
-            chrome.tabs.create({ url: "http://localhost:8080" });
+            chrome.tabs.create({ url: "http://127.0.0.1:5500/Website/index.html" });
         });
     }
 
