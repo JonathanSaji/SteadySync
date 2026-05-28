@@ -31,9 +31,14 @@ document.addEventListener('DOMContentLoaded', () => {
     const settingsSection = document.getElementById('settingsSection');
     const loginForm = document.getElementById('loginForm');
     const loginError = document.getElementById('loginError');
+    const emailInput = document.getElementById('emailInput');
+    const identityInput = document.getElementById('identityInput');
+    const loginSubmitBtn = document.getElementById('loginSubmitBtn');
+    const toggleCreateAccountBtn = document.getElementById('toggleCreateAccountBtn');
     const trySettingsBtn = document.getElementById('trySettingsBtn');
 
     let currentUser = localStorage.getItem('steadySyncUser');
+    let isCreateAccountMode = false;
 
     if (trySettingsBtn) {
         trySettingsBtn.addEventListener('click', () => {
@@ -83,16 +88,67 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    function setAuthMode(createMode) {
+        isCreateAccountMode = !!createMode;
+        if (!emailInput || !identityInput || !loginSubmitBtn || !toggleCreateAccountBtn) return;
+
+        emailInput.style.display = isCreateAccountMode ? 'block' : 'none';
+        emailInput.required = isCreateAccountMode;
+        identityInput.placeholder = isCreateAccountMode ? 'Username' : 'Username or Email';
+        loginSubmitBtn.textContent = isCreateAccountMode ? 'Create Account' : 'Login';
+        toggleCreateAccountBtn.textContent = isCreateAccountMode ? 'Back to login' : 'Create an account';
+        loginError.style.display = 'none';
+    }
+
+    if (toggleCreateAccountBtn) {
+        toggleCreateAccountBtn.addEventListener('click', () => {
+            setAuthMode(!isCreateAccountMode);
+        });
+    }
+
     if (loginForm) {
-        loginForm.addEventListener('submit', (e) => {
+        loginForm.addEventListener('submit', async (e) => {
             e.preventDefault();
-            const user = document.getElementById('usernameInput').value;
+            const identity = identityInput ? identityInput.value.trim() : '';
             const pass = document.getElementById('passwordInput').value;
-            
-            if ((user === 'user1' && pass === 'pass1') || (user === 'user2' && pass === 'pass2')) {
-                loginError.style.display = 'none';
-                login(user);
-            } else {
+            const email = emailInput ? emailInput.value.trim() : '';
+
+            loginError.style.display = 'none';
+
+            if (isCreateAccountMode && !email) {
+                loginError.textContent = 'Email is required to create an account.';
+                loginError.style.display = 'block';
+                return;
+            }
+
+            try {
+                const endpoint = isCreateAccountMode ? '/api/signup' : '/api/login';
+                const payload = isCreateAccountMode
+                    ? { username: identity, email, password: pass }
+                    : { identity, password: pass };
+
+                const response = await fetch(endpoint, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                const data = await response.json();
+
+                if (!response.ok) {
+                    loginError.textContent = data.error || 'Authentication failed.';
+                    loginError.style.display = 'block';
+                    return;
+                }
+
+                const loggedInUser = data.user?.username || data.user?.email || identity;
+                login(loggedInUser);
+                if (isCreateAccountMode && emailInput) {
+                    emailInput.value = '';
+                }
+                setAuthMode(false);
+            } catch (err) {
+                loginError.textContent = 'Server error. Please try again.';
                 loginError.style.display = 'block';
             }
         });
@@ -104,6 +160,8 @@ document.addEventListener('DOMContentLoaded', () => {
         renderAuthUI();
         window.postMessage({ type: 'STEADYSYNC_LOGIN', userId: userId }, '*');
     }
+
+    setAuthMode(false);
 
     renderAuthUI();
 

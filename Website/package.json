@@ -3,6 +3,11 @@
   "version": "1.0.0",
   "description": "Website for SteadySync",
   "scripts": {
-    "start": "npx http-server -p 5050 -c-1"
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "dotenv": "^17.2.3",
+    "express": "^5.1.0",
+    "pg": "^8.16.3"
   }
 }

@@ -46,10 +46,12 @@
             <h2 style="margin-bottom: 20px;">Login Required</h2>
             <p style="color: var(--text-muted); margin-bottom: 30px;">Please enter your credentials to view and manage your personalized settings.</p>
             <form id="loginForm" style="display: flex; flex-direction: column; gap: 15px;">
-                <input type="text" id="usernameInput" placeholder="Username (user1 or user2)" style="padding: 12px; border-radius: 8px; border: 1px solid var(--border-color); background: rgba(0,0,0,0.1); color: var(--text-main); font-size: 1rem;" required>
-                <input type="password" id="passwordInput" placeholder="Password (pass1 or pass2)" style="padding: 12px; border-radius: 8px; border: 1px solid var(--border-color); background: rgba(0,0,0,0.1); color: var(--text-main); font-size: 1rem;" required>
-                <div id="loginError" style="color: #ff4d4d; font-size: 0.9rem; display: none;">Invalid username or password.</div>
-                <button type="submit" class="primary-btn" style="margin-top: 10px;">Login</button>
+                <input type="text" id="identityInput" placeholder="Username or Email" style="padding: 12px; border-radius: 8px; border: 1px solid var(--border-color); background: rgba(0,0,0,0.1); color: var(--text-main); font-size: 1rem;" required>
+                <input type="email" id="emailInput" placeholder="Email" style="padding: 12px; border-radius: 8px; border: 1px solid var(--border-color); background: rgba(0,0,0,0.1); color: var(--text-main); font-size: 1rem; display: none;" required>
+                <input type="password" id="passwordInput" placeholder="Password" style="padding: 12px; border-radius: 8px; border: 1px solid var(--border-color); background: rgba(0,0,0,0.1); color: var(--text-main); font-size: 1rem;" required>
+                <div id="loginError" style="color: #ff4d4d; font-size: 0.9rem; display: none;">Invalid username/email or password.</div>
+                <button type="submit" id="loginSubmitBtn" class="primary-btn" style="margin-top: 10px;">Login</button>
+                <button type="button" id="toggleCreateAccountBtn" class="secondary-btn">Create an account</button>
             </form>
         </section>
 
