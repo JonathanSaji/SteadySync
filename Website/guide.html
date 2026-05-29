@@ -6,9 +6,83 @@
     <title>User Guide - SteadySync</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800;900&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="css/style.css">
+    
+    <style>
+        .cta-button-group {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 16px;
+            margin: 32px auto 16px auto;
+            width: 100%;
+            max-width: 500px;
+        }
+
+        .top-buttons-row {
+            display: flex;
+            gap: 12px;
+            justify-content: center;
+            width: 100%;
+            flex-wrap: wrap;
+        }
+
+        /* Styles for the two existing utility buttons */
+        .secondary-btn {
+            background-color: transparent;
+            border: 2px solid #367D8A;
+            color: #ffffff;
+            padding: 10px 20px;
+            font-family: 'Inter', sans-serif;
+            font-weight: 600;
+            font-size: 0.95rem;
+            text-decoration: none;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .secondary-btn:hover {
+            background-color: rgba(54, 125, 138, 0.1);
+            transform: translateY(-1px);
+        }
+
+        /* Center container for the main install button */
+        .install-container {
+            display: flex;
+            justify-content: center;
+            width: 100%;
+        }
+
+        /* Main Install Button Styling */
+        .install-btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            background-color: #367D8A; 
+            color: #ffffff;
+            padding: 14px 32px;
+            font-family: 'Inter', sans-serif;
+            font-weight: 800;
+            font-size: 1.1rem;
+            text-decoration: none;
+            border-radius: 8px;
+            transition: all 0.2s ease-in-out;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.2);
+        }
+
+        .install-btn:hover {
+            background-color: #2b636d;
+            transform: translateY(-2px);
+            box-shadow: 0 6px 12px rgba(0, 0, 0, 0.3);
+        }
+
+        .install-btn:active {
+            transform: translateY(0);
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+        }
+    </style>
 </head>
 <body data-theme="dark">
-    <!-- Animated background -->
     <div class="bg-blob"></div>
 
     <nav class="navbar">
@@ -23,8 +97,7 @@
             <a href="index.html">Home</a>
             <a href="guide.html" class="active">User Guide</a>
             <div id="authContainer" class="auth-container">
-                <!-- Injected via JS -->
-            </div>
+                </div>
         </div>
     </nav>
 
@@ -32,6 +105,18 @@
         <section class="guide-header">
             <h1>User Guide</h1>
             <p>Master SteadySync's accessibility features.</p>
+
+            <div class="cta-button-group">
+                <div class="top-buttons-row">
+                    <button class="secondary-btn">Try settings Sync</button>
+                    <button class="secondary-btn">View voice commands</button>
+                </div>
+                <div class="install-container">
+                    <a href="https://chromwebstore.google.com/detail/steadysync/cmhlljidoiigcdcbnbhgclclgpglbjdg?authuser=1" target="_blank" class="install-btn">
+                        Install Extension
+                    </a>
+                </div>
+            </div>
         </section>
 
         <section class="guide-content">
@@ -106,7 +191,7 @@
 
     <footer>
         <p>&copy; 2026 SteadySync. All rights reserved.</p>
-    </footer>
+    </main>
 
     <script src="js/app.js"></script>
 </body>
