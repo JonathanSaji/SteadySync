@@ -31,13 +31,13 @@ document.addEventListener("DOMContentLoaded", () => {
 
     if (openWebsiteLoginButton) {
         openWebsiteLoginButton.addEventListener("click", () => {
-            chrome.tabs.create({ url: "sub-sync.ca" });
+            chrome.tabs.create({ url: "https://steadysync.sub-sync.ca/" });
         });
     }
 
     if (openWebsiteBtn) {
         openWebsiteBtn.addEventListener("click", () => {
-            chrome.tabs.create({ url: "sub-sync.ca" });
+            chrome.tabs.create({ url: "https://steadysync.sub-sync.ca/" });
         });
     }
 
