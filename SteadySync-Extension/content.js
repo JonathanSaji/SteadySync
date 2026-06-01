@@ -963,7 +963,7 @@
     // We only accept messages from ourselves and only on the correct localhost
     if (event.source !== window) return;
     
-    const allowedOrigins = ['http://localhost:5500', 'http://127.0.0.1:5500'];
+    const allowedOrigins = ['sub-sync.ca', 'sub-sync.ca'];
     if (!allowedOrigins.includes(event.origin)) return;
 
     if (event.data.type && (event.data.type === 'STEADYSYNC_WEBSITE_PING')) {
