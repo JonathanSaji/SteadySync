@@ -8,7 +8,7 @@
     "128": "icon128.png"
   },
   "description": "Adaptive UI and tremor filtering for a smoother browsing experience.",
-  "permissions": ["scripting", "storage", "tabs"],
+  "permissions": ["storage"],
   "host_permissions": ["<all_urls>"],
   "options_page": "popup.html",
   "action": {
