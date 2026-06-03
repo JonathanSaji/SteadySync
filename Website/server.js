@@ -1,7 +1,7 @@
 const path = require('path');
+const crypto = require('crypto');
 const express = require('express');
 const session = require('express-session');
-const bcrypt = require('bcryptjs');
 const { Pool } = require('pg');
 const dotenv = require('dotenv');
 
@@ -55,11 +55,20 @@ app.use(session({
 }));
 
 function hashPassword(password) {
-  return bcrypt.hashSync(password, 10);
+  const salt = crypto.randomBytes(16).toString('hex');
+  const hash = crypto.scryptSync(password, salt, 64).toString('hex');
+  return `${salt}:${hash}`;
 }
 
 async function verifyPasswordAsync(password, hash) {
-  return bcrypt.compare(password, hash);
+  const [salt, storedHash] = hash.split(':');
+  const derivedHash = await new Promise((resolve, reject) => {
+    crypto.scrypt(password, salt, 64, { N: 16384, r: 8, p: 1 }, (err, hash) => {
+      if (err) reject(err);
+      resolve(hash.toString('hex'));
+    });
+  });
+  return crypto.timingSafeEqual(Buffer.from(derivedHash, 'hex'), Buffer.from(storedHash, 'hex'));
 }
 
 function sanitizeUserRow(row) {
