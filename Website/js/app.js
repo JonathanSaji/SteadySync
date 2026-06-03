@@ -1,4 +1,4 @@
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
     // Theme logic
     const themeBtn = document.getElementById('themeToggle');
     const themeText = document.getElementById('themeText');
@@ -37,8 +37,23 @@ document.addEventListener('DOMContentLoaded', () => {
     const toggleCreateAccountBtn = document.getElementById('toggleCreateAccountBtn');
     const trySettingsBtn = document.getElementById('trySettingsBtn');
 
-    let currentUser = localStorage.getItem('steadySyncUser');
+    let currentUser = null;
     let isCreateAccountMode = false;
+
+    // Check session on page load
+    try {
+        const sessionResponse = await fetch('/api/session');
+        if (sessionResponse.ok) {
+            const sessionData = await sessionResponse.json();
+            currentUser = sessionData.username;
+            localStorage.setItem('steadySyncUser', currentUser);
+        } else {
+            localStorage.removeItem('steadySyncUser');
+        }
+    } catch (err) {
+        console.error('Failed to check session:', err);
+        localStorage.removeItem('steadySyncUser');
+    }
 
     if (trySettingsBtn) {
         trySettingsBtn.addEventListener('click', () => {
@@ -53,19 +68,24 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function renderAuthUI() {
         if (authContainer) authContainer.innerHTML = '';
-        
+
         if (currentUser) {
             if (authContainer) {
                 const span = document.createElement('span');
                 span.textContent = `Logged in as ${currentUser}`;
                 span.style.marginRight = '15px';
                 span.style.fontWeight = 'bold';
-                
+
                 const logoutBtn = document.createElement('button');
                 logoutBtn.className = 'secondary-btn';
                 logoutBtn.textContent = 'Logout';
                 logoutBtn.style.padding = '8px 16px';
-                logoutBtn.onclick = () => {
+                logoutBtn.onclick = async () => {
+                    try {
+                        await fetch('/api/logout', { method: 'POST' });
+                    } catch (err) {
+                        console.error('Logout failed:', err);
+                    }
                     currentUser = null;
                     localStorage.removeItem('steadySyncUser');
                     renderAuthUI();
@@ -74,7 +94,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         if (elements.toggle) elements.toggle.disabled = true;
                     }
                 };
-                
+
                 authContainer.appendChild(span);
                 authContainer.appendChild(logoutBtn);
             }

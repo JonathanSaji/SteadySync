@@ -1,6 +1,7 @@
 const path = require('path');
-const crypto = require('crypto');
 const express = require('express');
+const session = require('express-session');
+const bcrypt = require('bcryptjs');
 const { Pool } = require('pg');
 const dotenv = require('dotenv');
 
@@ -45,25 +46,20 @@ async function resolveAccountTable() {
 }
 
 app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+app.use(session({
+  secret: process.env.SESSION_SECRET || 'steadysync-secret-key',
+  resave: false,
+  saveUninitialized: true,
+  cookie: { maxAge: 24 * 60 * 60 * 1000 }
+}));
 
 function hashPassword(password) {
-  const salt = crypto.randomBytes(16).toString('hex');
-  const hash = crypto.scryptSync(password, salt, 64).toString('hex');
-  return `${salt}:${hash}`;
+  return bcrypt.hashSync(password, 10);
 }
 
-function verifyPassword(password, storedHash) {
-  if (!storedHash || !storedHash.includes(':')) return false;
-
-  const [salt, originalHash] = storedHash.split(':');
-  if (!salt || !originalHash) return false;
-
-  const attemptedHash = crypto.scryptSync(password, salt, 64).toString('hex');
-  const originalBuffer = Buffer.from(originalHash, 'hex');
-  const attemptedBuffer = Buffer.from(attemptedHash, 'hex');
-
-  if (originalBuffer.length !== attemptedBuffer.length) return false;
-  return crypto.timingSafeEqual(originalBuffer, attemptedBuffer);
+async function verifyPasswordAsync(password, hash) {
+  return bcrypt.compare(password, hash);
 }
 
 function sanitizeUserRow(row) {
@@ -76,7 +72,7 @@ function sanitizeUserRow(row) {
 }
 
 app.post('/api/login', async (req, res) => {
-  const identity = (req.body?.identity || '').trim();
+  const identity = (req.body?.identity || '').trim().toLowerCase();
   const password = req.body?.password || '';
 
   if (!identity || !password) {
@@ -88,7 +84,7 @@ app.post('/api/login', async (req, res) => {
     const query = `
       SELECT id, username, email, display_name, password_hash
       FROM ${accountTable}
-      WHERE LOWER(username) = LOWER($1) OR LOWER(email) = LOWER($1)
+      WHERE LOWER(username) = $1 OR LOWER(email) = $1
       LIMIT 1
     `;
 
@@ -99,15 +95,19 @@ app.post('/api/login', async (req, res) => {
     }
 
     const user = result.rows[0];
-    const isValid = verifyPassword(password, user.password_hash);
+    const isValid = await verifyPasswordAsync(password, user.password_hash);
 
     if (!isValid) {
       return res.status(401).json({ error: 'Invalid username/email or password.' });
     }
 
+    req.session.userId = user.id;
+    req.session.username = user.username;
+    req.session.email = user.email;
+
     await pool.query(`UPDATE ${accountTable} SET last_login_at = NOW() WHERE id = $1`, [user.id]);
 
-    return res.json({ user: sanitizeUserRow(user) });
+    return res.json({ success: true, user: sanitizeUserRow(user) });
   } catch (error) {
     console.error('Login error:', error.message);
     return res.status(500).json({ error: 'Unable to log in right now.' });
@@ -142,13 +142,33 @@ app.post('/api/signup', async (req, res) => {
     `;
 
     const result = await pool.query(query, [username, email, passwordHash, username]);
-    return res.status(201).json({ user: sanitizeUserRow(result.rows[0]) });
+    const user = result.rows[0];
+
+    req.session.userId = user.id;
+    req.session.username = user.username;
+    req.session.email = user.email;
+
+    return res.status(201).json({ success: true, user: sanitizeUserRow(user) });
   } catch (error) {
     if (error && error.code === '23505') {
       return res.status(409).json({ error: 'Username or email already exists.' });
     }
     console.error('Signup error:', error.message);
     return res.status(500).json({ error: 'Unable to create account right now.' });
+  }
+});
+
+
+app.post('/api/logout', (req, res) => {
+  req.session.destroy();
+  res.json({ success: true });
+});
+
+app.get('/api/session', (req, res) => {
+  if (req.session.userId) {
+    res.json({ username: req.session.username, email: req.session.email });
+  } else {
+    res.status(401).json({ error: 'Not authenticated' });
   }
 });
 
