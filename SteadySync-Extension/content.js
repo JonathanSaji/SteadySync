@@ -959,12 +959,22 @@
 
   // --- Website Integration ---
   // Listen for messages from the website to control extension settings
+  function isAllowedWebsiteOrigin(origin) {
+    if (!origin) return false;
+
+    const normalized = origin.replace(/^https?:\/\//, '').replace(/\/$/, '');
+    return normalized === 'steadysync.sub-sync.ca'
+      || normalized.endsWith('.sub-sync.ca')
+      || normalized === 'localhost'
+      || normalized.startsWith('localhost:')
+      || normalized === '127.0.0.1'
+      || normalized.startsWith('127.0.0.1:');
+  }
+
   window.addEventListener('message', (event) => {
-    // We only accept messages from ourselves and only on the correct localhost
+    // We only accept messages from ourselves and only from the real website / local dev domain
     if (event.source !== window) return;
-    
-    const allowedOrigins = ['sub-sync.ca', 'sub-sync.ca'];
-    if (!allowedOrigins.includes(event.origin)) return;
+    if (!isAllowedWebsiteOrigin(event.origin)) return;
 
     if (event.data.type && (event.data.type === 'STEADYSYNC_WEBSITE_PING')) {
       chrome.storage.local.get(['currentUser', 'pathToggleEnabled', 'hitboxEnabled', 'snapEnabled', 'voiceEnabled'], (result) => {

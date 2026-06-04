@@ -82,32 +82,42 @@ document.addEventListener("DOMContentLoaded", () => {
         chrome.storage.local.set(updates);
     }
 
+    function refreshPopupState() {
+        chrome.storage.local.get(["currentUser", "pathToggleEnabled", "hitboxEnabled", "snapEnabled", "voiceEnabled", "theme"], (result) => {
+            currentUser = result.currentUser;
+            if (!currentUser) {
+                showView("login");
+                document.documentElement.setAttribute('data-theme', 'dark');
+                if (themeToggleBtn) themeToggleBtn.style.display = 'none';
+                return;
+            }
+
+            showView("popup");
+            if (themeToggleBtn) themeToggleBtn.style.display = 'flex';
+            const savedTheme = result.theme || 'dark';
+            applyTheme(savedTheme);
+
+            pathToggle.checked = Boolean(result.pathToggleEnabled);
+            hitboxToggle.checked = Boolean(result.hitboxEnabled);
+            snapToggle.checked = Boolean(result.snapEnabled);
+            voiceToggle.checked = Boolean(result.voiceEnabled);
+
+            updateStatusLabel(pathStatus, pathToggle.checked);
+            updateStatusLabel(hitboxStatus, hitboxToggle.checked);
+            updateStatusLabel(snapStatus, snapToggle.checked);
+            updateStatusLabel(voiceStatus, voiceToggle.checked);
+            syncSystemButton();
+        });
+    }
+
     // --- Load saved states ---
-    chrome.storage.local.get(["currentUser", "pathToggleEnabled", "hitboxEnabled", "snapEnabled", "voiceEnabled", "theme"], (result) => {
-        currentUser = result.currentUser;
-        if (!currentUser) {
-            showView("login");
-            // Force dark mode for login wall
-            document.documentElement.setAttribute('data-theme', 'dark');
-            if (themeToggleBtn) themeToggleBtn.style.display = 'none';
-            return;
+    refreshPopupState();
+
+    chrome.storage.onChanged.addListener((changes, areaName) => {
+        if (areaName !== 'local') return;
+        if (changes.currentUser || changes.pathToggleEnabled || changes.hitboxEnabled || changes.snapEnabled || changes.voiceEnabled || changes.theme) {
+            refreshPopupState();
         }
-        
-        showView("popup");
-        if (themeToggleBtn) themeToggleBtn.style.display = 'flex';
-        const savedTheme = result.theme || 'dark';
-        applyTheme(savedTheme);
-
-        pathToggle.checked = Boolean(result.pathToggleEnabled);
-        hitboxToggle.checked = Boolean(result.hitboxEnabled);
-        snapToggle.checked = Boolean(result.snapEnabled);
-        voiceToggle.checked = Boolean(result.voiceEnabled);
-
-        updateStatusLabel(pathStatus, pathToggle.checked);
-        updateStatusLabel(hitboxStatus, hitboxToggle.checked);
-        updateStatusLabel(snapStatus, snapToggle.checked);
-        updateStatusLabel(voiceStatus, voiceToggle.checked);
-        syncSystemButton();
     });
 
     // --- Feature toggle handlers ---
