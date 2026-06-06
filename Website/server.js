@@ -80,6 +80,18 @@ function sanitizeUserRow(row) {
   };
 }
 
+// --- Auth middleware ---
+function requireAuth(req, res, next) {
+  if (!req.session.userId) {
+    return res.status(401).json({ error: 'Not authenticated' });
+  }
+  next();
+}
+
+// ----------------------------------------------------------------
+// AUTH ROUTES
+// ----------------------------------------------------------------
+
 app.post('/api/login', async (req, res) => {
   const identity = (req.body?.identity || '').trim().toLowerCase();
   const password = req.body?.password || '';
@@ -167,7 +179,6 @@ app.post('/api/signup', async (req, res) => {
   }
 });
 
-
 app.post('/api/logout', (req, res) => {
   req.session.destroy();
   res.json({ success: true });
@@ -180,6 +191,120 @@ app.get('/api/session', (req, res) => {
     res.status(401).json({ error: 'Not authenticated' });
   }
 });
+
+// ----------------------------------------------------------------
+// SETTINGS ROUTES
+// ----------------------------------------------------------------
+
+/**
+ * GET /api/settings
+ * Returns the current user's settings from SteadySync.user_settings.
+ * If no row exists yet, returns all-false defaults.
+ */
+app.get('/api/settings', requireAuth, async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT steady_mouse, hitbox_enabled, snap_enabled, voice_enabled
+       FROM "SteadySync".user_settings
+       WHERE user_id = $1`,
+      [req.session.userId]
+    );
+
+    if (result.rowCount === 0) {
+      // No settings saved yet — return defaults
+      return res.json({
+        pathToggleEnabled: false,
+        hitboxEnabled: false,
+        snapEnabled: false,
+        voiceEnabled: false
+      });
+    }
+
+    const row = result.rows[0];
+    return res.json({
+      pathToggleEnabled: row.steady_mouse,
+      hitboxEnabled:     row.hitbox_enabled,
+      snapEnabled:       row.snap_enabled,
+      voiceEnabled:      row.voice_enabled
+    });
+  } catch (error) {
+    console.error('GET /api/settings error:', error.message);
+    return res.status(500).json({ error: 'Failed to load settings.' });
+  }
+});
+
+/**
+ * PUT /api/settings
+ * Upserts the current user's settings.
+ * Body: { pathToggleEnabled, hitboxEnabled, snapEnabled, voiceEnabled }
+ */
+app.put('/api/settings', requireAuth, async (req, res) => {
+  const {
+    pathToggleEnabled = false,
+    hitboxEnabled     = false,
+    snapEnabled       = false,
+    voiceEnabled      = false
+  } = req.body;
+
+  try {
+    await pool.query(
+      `INSERT INTO "SteadySync".user_settings
+         (user_id, steady_mouse, hitbox_enabled, snap_enabled, voice_enabled, updated_at)
+       VALUES ($1, $2, $3, $4, $5, NOW())
+       ON CONFLICT (user_id) DO UPDATE SET
+         steady_mouse   = EXCLUDED.steady_mouse,
+         hitbox_enabled = EXCLUDED.hitbox_enabled,
+         snap_enabled   = EXCLUDED.snap_enabled,
+         voice_enabled  = EXCLUDED.voice_enabled,
+         updated_at     = NOW()`,
+      [req.session.userId, pathToggleEnabled, hitboxEnabled, snapEnabled, voiceEnabled]
+    );
+
+    return res.json({ success: true });
+  } catch (error) {
+    console.error('PUT /api/settings error:', error.message);
+    return res.status(500).json({ error: 'Failed to save settings.' });
+  }
+});
+
+/**
+ * PATCH /api/settings
+ * Updates a single setting by key.
+ * Body: { setting: 'snapEnabled', value: true }
+ */
+app.patch('/api/settings', requireAuth, async (req, res) => {
+  const { setting, value } = req.body;
+
+  const columnMap = {
+    pathToggleEnabled: 'steady_mouse',
+    hitboxEnabled:     'hitbox_enabled',
+    snapEnabled:       'snap_enabled',
+    voiceEnabled:      'voice_enabled'
+  };
+
+  const column = columnMap[setting];
+  if (!column) {
+    return res.status(400).json({ error: `Unknown setting: ${setting}` });
+  }
+
+  try {
+    await pool.query(
+      `INSERT INTO "SteadySync".user_settings (user_id, ${column}, updated_at)
+       VALUES ($1, $2, NOW())
+       ON CONFLICT (user_id) DO UPDATE SET
+         ${column}    = EXCLUDED.${column},
+         updated_at   = NOW()`,
+      [req.session.userId, Boolean(value)]
+    );
+
+    return res.json({ success: true });
+  } catch (error) {
+    console.error('PATCH /api/settings error:', error.message);
+    return res.status(500).json({ error: 'Failed to update setting.' });
+  }
+});
+
+// ----------------------------------------------------------------
 
 app.use(express.static(__dirname));
 
